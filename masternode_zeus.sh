@@ -149,7 +149,7 @@ function idCheck(){
 	echo -e "$msg"
 	sid=$(sudo id -u)
 	(( $? != 0 )) && return 2
-	(( $sid == 0 )) && return 0
+	(( sid == 0 )) && return 0
 }
 
 
@@ -326,7 +326,7 @@ function updateSystem(){
 
 
 	echo " Install additional packages needed for masternode operation..."
-	sudo apt-get install ufw python3 virtualenv git unzip pv bc jq speedtest-cli &&\
+	sudo apt-get install ufw python3 virtualenv git unzip pv bc jq speedtest-cli catimg &&\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
 	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
@@ -467,9 +467,9 @@ function createDashConf(){
 	# Configure a bare bones dash.conf file.
 	DASH_CONF="/home/dash/.dashcore/dash.conf"
 	if sudo test -f "$DASH_CONF";then
-		echo "******************** "$DASH_CONF" ********************"
+		echo "******************** $DASH_CONF ********************"
 		sudo cat "$DASH_CONF"
-		echo "******************** "$DASH_CONF" ********************"
+		echo "******************** $DASH_CONF ********************"
 		msg="A dash.conf file already exists at $DASH_CONF\n"
 		msg+="It is displayed on the screen above this text. Would you like to overwrite\n"
 		msg+="this file? Recommend to not overwrite, especially if your masternode is working.\n"
@@ -495,6 +495,9 @@ function createDashConf(){
 	rpcpassword=$(getRandomString 40)
 	ip=$(curl -s http://ipecho.net/plain)
 	(( $? != 0 )) && ip="XXX.XXX.XXX.XXX"
+	msg="Next you need your bls private that you got from the 'bls generate' command\n"
+	msg+="in the core walletor from DMT.\n"
+	msg+="Note: This is NOT your collateral private key !\n"
 	msg="Please enter your bls private (secret) key, if you don't have it ready,\n"
 	msg+="just type in 'default' and edit your $DASH_CONF file later."
 	echo -e "$msg"
@@ -758,7 +761,7 @@ showStatus(){
 	&& port_9999="Error"
 	printGraduatedProgressBar 50 40
 
-	dashd_version=$(sudo -i -u dash bash -c "dashd -version 2>/dev/null")
+	dashd_version=$(sudo -i -u dash bash -c "dashd -version 2>/dev/null" 2>/dev/null)
 	(( $? != 0 )) && dashd_version="Not found!"\
 	||dashd_version=$(head -1 <<< "$dashd_version")
 	printGraduatedProgressBar 50 50
@@ -780,7 +783,7 @@ showStatus(){
 	printGraduatedProgressBar 50 55
 
 	if (( num_dashd_procs > 0 ));then
-		block_height=$(sudo -i -u dash bash -c "dash-cli getblockcount 2>/dev/null")
+		block_height=$(sudo -i -u dash bash -c "dash-cli getblockcount 2>/dev/null" 2>/dev/null)
 		# Test is for good return, must be a number between 1 and 8 digits long.
 		(( $? != 0 )) || [[ ! "$block_height" =~ ^[0-9]+$ ]] ||  ((${#block_height} > 8 || ${#block_height} == 0 )) && block_height="Error"
 	else
@@ -789,7 +792,7 @@ showStatus(){
 	printGraduatedProgressBar 50 60
 
 
-	blockchair_height=$(curl -s https://api.blockchair.com/dash/stats|jq -r '.data.best_block_height')
+	blockchair_height=$({ curl -s https://api.blockchair.com/dash/stats|jq -r '.data.best_block_height';} 2>/dev/null)
 	(( $? != 0 )) || [[ ! "$blockchair_height" =~ ^[0-9]+$ ]] ||  ((${#blockchair_height} > 8 || ${#blockchair_height} == 0 )) && blockchair_height="Error"
 	printGraduatedProgressBar 50 65
 
@@ -804,7 +807,7 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
-		masternode_status=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.status'")
+		masternode_status=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.status' 2>/dev/null" 2>/dev/null)
 		(( ${#masternode_status} == 0 )) && masternode_status="Unknown"
 	else
 		masternode_status="dashd down"
@@ -812,7 +815,7 @@ showStatus(){
 	printGraduatedProgressBar 50 80
 
 	if (( num_dashd_procs > 0 ));then
-		pose_score=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.dmnState.PoSePenalty'")
+		pose_score=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.dmnState.PoSePenalty' 2>/dev/null" 2>/dev/null)
 		(( $? != 0 )) || [[ ! "$pose_score" =~ ^[0-9]+$ ]] ||  ((${#pose_score} > 8 || ${#pose_score} == 0 )) && pose_score="N/A"
 	else
 		pose_score="dashd down"
@@ -821,8 +824,8 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
-		enabled_mns=$(sudo -i -u dash bash -c "dash-cli masternode count 2>/dev/null|jq -r '.enabled'")
-		total_mns=$(sudo -i -u dash bash -c "dash-cli masternode count 2>/dev/null|jq -r '.total'")
+		enabled_mns=$(sudo -i -u dash bash -c "dash-cli masternode count 2>/dev/null|jq -r '.enabled' 2>/dev/null" 2>/dev/null)
+		total_mns=$(sudo -i -u dash bash -c "dash-cli masternode count 2>/dev/null|jq -r '.total' 2>/dev/null" 2>/dev/null)
 		(( $? != 0 )) || [[ ! "$enabled_mns" =~ ^[0-9]+$ ]] ||  ((${#enabled_mns} > 8 || ${#enabled_mns} == 0 )) && { enabled_mns="Unknown";total_mns="Unknown";}
 	else
 		enabled_mns="dashd down";total_mns="dashd down"
@@ -830,7 +833,7 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
-		mn_sync=$(sudo -i -u dash bash -c "dash-cli mnsync status 2>/dev/null|jq -r '.AssetName'")
+		mn_sync=$(sudo -i -u dash bash -c "dash-cli mnsync status 2>/dev/null|jq -r '.AssetName' 2>/dev/null" 2>/dev/null)
 		(( ${#mn_sync} == 0 )) && mn_sync="Unknown"
 	else
 		mn_sync="dashd down"
@@ -838,7 +841,7 @@ showStatus(){
 	printGraduatedProgressBar 50 90
 
 	if (( num_dashd_procs > 0 ));then
-		last_paid_height=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.dmnState.lastPaidHeight'")
+		last_paid_height=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.dmnState.lastPaidHeight' 2>/dev/null" 2>/dev/null)
 		if (( $? != 0 )) || [[ ! "$last_paid_height" =~ ^[0-9]+$ ]] ||  ((${#last_paid_height} > 8 || ${#last_paid_height} == 0 ));then
 			next_payment="Unknown"
 		else
@@ -854,56 +857,57 @@ showStatus(){
 	fi
 
 
-	sentinel=$(sudo -i -u dash bash -c "cd ~/sentinel 2>/dev/null&& venv/bin/python bin/sentinel.py")
+	sentinel=$(sudo -i -u dash bash -c "cd ~/sentinel 2>/dev/null&& venv/bin/python bin/sentinel.py" 2>/dev/null)
 	(( $? == 0 && ${#sentinel} == 0 ))\
 	&& sentinel="OK"\
 	|| sentinel="Failed"
-	sentinel_version=$(sudo -i -u dash bash -c "cd ~/sentinel/ 2>/dev/null&&venv/bin/python bin/sentinel.py --version")
+	sentinel_version=$(sudo -i -u dash bash -c "cd ~/sentinel/ 2>/dev/null&&venv/bin/python bin/sentinel.py --version" 2>/dev/null)
 	printGraduatedProgressBar 50 100
 
 	# Now print it all out nicely formatted on screen.
-	msg="$bldblu=========================================================\n"
-	msg+="====================== System info ======================\n"
-	msg+="=========================================================\n"
+	msg="${bldblu}$(date)\n"
+	msg+="=====================================================\n"
+	msg+="================== System info ======================\n"
+	msg+="=====================================================\n"
 	echo -e "$msg"
 
-	printf "$bldgrn%18s$txtred%14s\n" "CPU Load:" $cpu
-	printf "$bldgrn%18s$txtred%14s\n" "Disk used / size:" "$disk_used / $disk_size"
-	printf "$bldgrn%18s$txtred%14s\n" "Disk free:" $disk_free
-	printf "$bldgrn%18s$txtred%14s\n" "RAM used / size:" "$ram_used / $ram_size"
-	printf "$bldgrn%18s$txtred%14s\n" "RAM free:" $ram_free
-	printf "$bldgrn%18s$txtred%14s\n" "Swap used / size:" "$swap_used / $swap_size"
-	printf "$bldgrn%18s$txtred%14s\n" "Swap free:" $swap_free
+	printf "$bldgrn%17s : $txtred%s\n" "CPU Load" "$cpu"
+	printf "$bldgrn%17s : $txtred%s\n" "Disk used / size" "$disk_used / $disk_size"
+	printf "$bldgrn%17s : $txtred%s\n" "Disk free" "$disk_free"
+	printf "$bldgrn%17s : $txtred%s\n" "RAM used / size" "$ram_used / $ram_size"
+	printf "$bldgrn%17s : $txtred%s\n" "RAM free" "$ram_free"
+	printf "$bldgrn%17s : $txtred%s\n" "Swap used / size" "$swap_used / $swap_size"
+	printf "$bldgrn%17s : $txtred%s\n" "Swap free" "$swap_free"
 
 	msg="\n"
-	msg+="$bldblu=========================================================\n"
-	msg+="======================= dashd info ======================\n"
-	msg+="=========================================================\n"
+	msg+="$bldblu=====================================================\n"
+	msg+="=================== dashd info ======================\n"
+	msg+="=====================================================\n"
 	echo -e "$msg"
 
-	printf "$bldgrn%18s$txtred%35s\n" "dashd version:" "$dashd_version"
-	printf "$bldgrn%18s$txtred%14s\n" "IP address:" "$externalip"
-	printf "$bldgrn%18s$txtred%14s\n" "Port (9999):" "$port_9999"
+	printf "$bldgrn%17s : $txtred%s\n" "dashd version" "$dashd_version"
+	printf "$bldgrn%17s : $txtred%s\n" "IP address" "$externalip"
+	printf "$bldgrn%17s : $txtred%s\n" "Port (9999)" "$port_9999"
 
 	if (( num_dashd_procs == 0 ));then
-		printf "$bldgrn%18s$txtred%14s\n" "dashd running?" "No!"
+		printf "$bldgrn%17s : $txtred%s\n" "dashd running?" "No!"
 	else
 		for ((i=0; i<${#dashd_pid[@]}; i++));do
-			printf "$bldgrn%18s$txtred%14s\n" "dashd pid / user:" "${dashd_pid[$i]} / ${dashd_user[$i]}"
+			printf "$bldgrn%17s : $txtred%s\n" "dashd pid / user" "${dashd_pid[$i]} / ${dashd_user[$i]}"
 		done
 	fi
 
-	printf "$bldgrn%18s$txtred%14s\n" "Block height:" "$block_height"
-	printf "$bldgrn%18s$txtred%14s\n" "Blockchair height:" "$blockchair_height"
-	printf "$bldgrn%18s$txtred%14s\n" "CryptoId height:" "$cryptoid_height"
-	printf "$bldgrn%18s$txtred%14s\n" "Masternode status:" "$masternode_status"
-	printf "$bldgrn%18s$txtred%14s\n" "PoSe score:" "$pose_score"
-	printf "$bldgrn%18s$txtred%14s\n" "Masternode sync:" "$mn_sync"
-	printf "$bldgrn%18s$txtred%14s\n" "Sentinel:" "$sentinel"
-	printf "$bldgrn%18s$txtred%14s\n" "Sentinel version:" "$sentinel_version"
-	printf "$bldgrn%18s$txtred%14s\n" "Next payment:" "$next_payment"
+	printf "$bldgrn%17s : $txtred%s\n" "Block height" "$block_height"
+	printf "$bldgrn%17s : $txtred%s\n" "Blockchair height" "$blockchair_height"
+	printf "$bldgrn%17s : $txtred%s\n" "CryptoId height" "$cryptoid_height"
+	printf "$bldgrn%17s : $txtred%s\n" "Masternode status" "$masternode_status"
+	printf "$bldgrn%17s : $txtred%s\n" "PoSe score" "$pose_score"
+	printf "$bldgrn%17s : $txtred%s\n" "Masternode sync" "$mn_sync"
+	printf "$bldgrn%17s : $txtred%s\n" "Sentinel" "$sentinel"
+	printf "$bldgrn%17s : $txtred%s\n" "Sentinel version" "$sentinel_version"
+	printf "$bldgrn%17s : $txtred%s\n" "Next payment" "$next_payment"
 	echo -e "$txtrst"
-	linesOfStatsPrinted=31
+	linesOfStatsPrinted=32
 	if (( num_dashd_procs > 1));then
 		((linesOfStatsPrinted=linesOfStatsPrinted + num_dashd_procs -1))
 	fi
@@ -927,6 +931,33 @@ displayDebugLog(){
 EOF
 	exec 2>&1
 }
+
+reclaimFreeDiskSpace(){
+	# A bunch of things we can do to safely reclaim some disk space.
+	# Clean out stale app files and the apt cache.
+	echo -e "Freeing up disk space...\n"
+	sudo apt-get clean
+	sudo apt-get autoclean
+	sudo apt-get autoremove --purge
+	
+	# Shrink logs.
+	sudo journalctl --disk-usage
+	sudo journalctl --vacuum-time=2d
+
+	msg="\nThe app cache and the journal logs have been cleaned.\n"
+	msg+="To recover more space, you should reboot your VPS now.\n"
+	msg+="Press ${bldwht}r${txtrst} to reboot now, any other key to return to the menu."
+	echo -en "$msg"
+	read -n1 option
+	echo -e "\n$option">>"$LOGFILE"
+	echo
+	option=${option:-N}
+	if [[ $option = [rR] ]];then
+		sudo reboot
+	fi
+}
+
+
 
 bootStrap(){
 
@@ -966,27 +997,62 @@ EOF
 	sudo systemctl start dashd
 }
 
-function printBanner() {
-	# Gotta escape the back ticks ` with \
-	echo -e "$bldwht"\
-	"  _____                _____   _    _                        $VERSION\n"\
-	" |  __ \      /\      / ____| | |  | |                                    \n"\
-	" | |  | |    /  \    | (___   | |__| |                                    \n"\
-	" | |  | |   / /\ \    \___ \  |  __  |                                    \n"\
-	" | |__| |  / ____ \   ____) | | |  | |                                    \n"\
-	" |_____/  /_/    \_\ |_____/  |_|  |_|                                    \n"\
-	"  __  __                 _                                       _        \n"\
-	" |  \/  |               | |                                     | |       \n"\
-	" | \  / |   __ _   ___  | |_    ___   _ __   _ __     ___     __| |   ___ \n"\
-	" | |\/| |  / _\` | / __| | __|  / _ \ | '__| | '_ \   / _ \   / _\` |  / _ \ \n"\
-	" | |  | | | (_| | \__ \ | |_  |  __/ | |    | | | | | (_) | | (_| | |  __/\n"\
-	" |_|  |_|  \__,_| |___/  \__|  \___| |_|    |_| |_|  \___/   \__,_|  \___|\n"\
-	"  ______                                                                  \n"\
-	" |___  /                                                                  \n"\
-	"    / /    ___   _   _   ___                                              \n"\
-	"   / /    / _ \ | | | | / __|                                             \n"\
-	"  / /__  |  __/ | |_| | \__ \                                             \n"\
-	" /_____|  \___|  \__,_| |___/                                             \n$txtrst"
+getLogo(){
+	catimg -h >/dev/null 2>&1 || return 1
+	if [[ ! -f /tmp/dash_logo_2018_rgb_for_screens.png ]];then
+		wget -q -O /tmp/dash_logo_2018_rgb_for_screens.png https://media.dash.org/wp-content/uploads/dash_logo_2018_rgb_for_screens.png || return 2
+	fi
+	file /tmp/dash_logo_2018_rgb_for_screens.png 2>/dev/null|grep -q "PNG image data" || return 3
+	# By now, we have downloaded and verified a PNG image from the dash.org website and can attempt to render it.
+	COLOUR_LOGO=1
+}
+
+function printBanner(){
+	if [[ -z $COLOUR_LOGO ]];then
+		# Gotta escape the back ticks ` with \
+		echo -e "$bldwht"\
+		"  _____                _____   _    _                        $VERSION\n"\
+		" |  __ \      /\      / ____| | |  | |                                    \n"\
+		" | |  | |    /  \    | (___   | |__| |                                    \n"\
+		" | |  | |   / /\ \    \___ \  |  __  |                                    \n"\
+		" | |__| |  / ____ \   ____) | | |  | |                                    \n"\
+		" |_____/  /_/    \_\ |_____/  |_|  |_|                                    \n"\
+		"  __  __                 _                                       _        \n"\
+		" |  \/  |               | |                                     | |       \n"\
+		" | \  / |   __ _   ___  | |_    ___   _ __   _ __     ___     __| |   ___ \n"\
+		" | |\/| |  / _\` | / __| | __|  / _ \ | '__| | '_ \   / _ \   / _\` |  / _ \ \n"\
+		" | |  | | | (_| | \__ \ | |_  |  __/ | |    | | | | | (_) | | (_| | |  __/\n"\
+		" |_|  |_|  \__,_| |___/  \__|  \___| |_|    |_| |_|  \___/   \__,_|  \___|\n"\
+		"  ______                                                                  \n"\
+		" |___  /                                                                  \n"\
+		"    / /    ___   _   _   ___                                              \n"\
+		"   / /    / _ \ | | | | / __|                                             \n"\
+		"  / /__  |  __/ | |_| | \__ \                                             \n"\
+		" /_____|  \___|  \__,_| |___/                                             \n$txtrst"
+	else
+		# In order for catimg to work, we have to restore the file descriptors for stdin and stdout.
+		exec 1>&3
+		exec 2>&4
+		catimg /tmp/dash_logo_2018_rgb_for_screens.png
+		exec 2>&1
+		if (($(tput cols)>90));then
+			msg="  __  __               _                                 _           ____                  \n"
+			msg+=" |  \/  |  __ _   ___ | |_   ___   _ _   _ _    ___   __| |  ___    |_  /  ___   _  _   ___\n"
+			msg+=" | |\/| | / _\` | (_-< |  _| / -_) | '_| | ' \  / _ \ / _\` | / -_)    / /  / -_) | || | (_-<\n"
+			msg+=" |_|  |_| \__,_| /__/  \__| \___| |_|   |_||_| \___/ \__,_| \___|   /___| \___|  \_,_| /__/\n"
+		else
+			msg="  __  __               _                                 _          \n"
+			msg+=" |  \/  |  __ _   ___ | |_   ___   _ _   _ _    ___   __| |  ___   \n"
+			msg+=" | |\/| | / _\` | (_-< |  _| / -_) | '_| | ' \  / _ \ / _\` | / -_)\n"
+			msg+=" |_|  |_| \__,_| /__/  \__| \___| |_|   |_||_| \___/ \__,_| \___|  \n"
+			msg+="\n"
+			msg+=" ____                  \n"
+			msg+=" |_  /  ___   _  _   ___\n"
+			msg+="  / /  / -_) | || | (_-<\n"
+			msg+=" /___| \___|  \_,_| /__/\n"
+		fi
+		echo -e "$msg"
+	fi
 }
 
 
@@ -1043,9 +1109,137 @@ function rootMenu(){
 
 }
 
-
-
-##### Move some functions to a manage masternode sub-menu to clean this one up a bit.
+manageMasternodeMenu(){
+	msg="\n\n"
+	msg+="=====================\n"
+	msg+="== MASTERNODE MENU ==\n"
+	msg+="=====================\n"
+	msg+="\n\nMake a selection from the below options.\n"
+	msg+="1. (Re)install dash binaries, use this for updates.\n"
+	msg+="2. (Re)install sentinel and update it.\n"
+	msg+="3. Review and edit your dash.conf file.\n"
+	msg+="4. Reindex dashd.\n"
+	msg+="5. View debug.log.\n"
+	msg+="9. Return to Main Menu.\n"
+	echo -e "$msg"
+	echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
+	read -n1 option
+	echo -e "\n$option">>"$LOGFILE"
+	echo
+	option=${option:-9}
+	case $option in
+		1)
+			msg="This will re-install your dash binaries.  Use this option if you wish to\n"
+			msg+="update the dash daemon, the dashd service will be automatically restarted\n"
+			msg+="after the update.\n\n"
+			msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
+			echo -en "$msg"
+			read -n1 option
+			echo -e "\n$option">>"$LOGFILE"
+			option=${option:-N}
+			[[ $option = [yY] ]] || return 0
+			echo
+			downloadInstallDash
+			if (( $? == 0 ));then
+				echo "Installation has been successful, restarting the dashd daemon..."
+				sudo systemctl stop dashd
+				sudo systemctl start dashd
+			else
+				echo "Installation of dashd has been unsuccessful, please investigate or seek support!"
+			fi
+			read -s -n1 -p "Press any key to continue. "
+			echo
+			return 0
+			;;
+		2)
+			msg="This will update and replace your sentinel with a new one from Github.\n"
+			msg+="Use this option if your sentinel is not working right, or if you need to\n"
+			msg+="upgrade it.\n\n"
+			msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
+			echo -en "$msg"
+			read -n1 option
+			echo -e "\n$option">>"$LOGFILE"
+			option=${option:-N}
+			[[ $option = [yY] ]] || return 0
+			echo
+			installSentinel
+			if (( $? == 0 ));then
+				echo "Installation has been successful."
+			else
+				echo "Installation of sentinel has been unsuccessful, please investigate or seek support!"
+			fi
+			read -s -n1 -p "Press any key to continue. "
+			echo
+			return 0
+			;;
+		3)
+			echo "******************** $DASH_CONF ********************"
+			sudo cat "$DASH_CONF"
+			echo "******************** $DASH_CONF ********************"
+			msg="\nAbove is your existing dash.conf, if you wish to edit it press Y any other key will\n"
+			msg+="return to the main menu. [y [${bldwht}N${txtrst}]] "
+			echo -en "$msg"
+			read -n1 option
+			echo -e "\n$option">>"$LOGFILE"
+			option=${option:-N}
+			[[ $option = [yY] ]] || return 0
+			echo
+			editDashConf
+			sudo systemctl stop dashd
+			sudo systemctl start dashd
+			read -s -n1 -p "Done!  Press any key to continue. "
+			echo
+			return 0
+			;;
+		4)
+			msg="As a last resort if your node is stuck, you can choose to reindex it.\n"
+			msg+="This process will take about 3 hours depending on your hardware.\n"
+			msg+="You can monitor the progress from the status page...\n"
+			msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
+			echo -en "$msg"
+			read -n1 option
+			echo -e "\n$option">>"$LOGFILE"
+			option=${option:-N}
+			[[ $option = [yY] ]] || return 0
+			echo
+			sudo systemctl stop dashd
+			sudo -i -u dash bash -c "dashd -reindex"
+			read -s -n1 -p "Reindex has started!  Press any key to continue. "
+			echo
+			return 0
+			;;
+		5)
+			msg="This option will open the debug.log file in less from when the node\n"
+			msg+="was last started. To navigate the log file use the below hints.\n"
+			msg+="G - Pressing uppercase G will take you to the end of the log file to see the most recent entries.\n"
+			msg+="g - Pressing lowercase g takes you to the start (oldest entries).\n"
+			msg+="q - To quit.\n"
+			msg+="/ - Typing / and search term will search the file for that term.\n"
+			msg+="n - When in search mode n will skip to the next occurance of the term.\n"
+			msg+="b - When in search mode b will go back to the previous occurance of the term.\n"
+			msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
+			echo -en "$msg"
+			read -n1 option
+			echo -e "\n$option">>"$LOGFILE"
+			option=${option:-N}
+			[[ $option = [yY] ]] || return 0
+			echo
+			displayDebugLog
+			read -s -n1 -p "Press any key to continue. "
+			echo
+			return 0
+			;;
+		9)
+			echo "Back to Main Menu..."
+			return 9
+			;;
+		*)
+			echo "Invalid selection, please enter again."
+			busyLoop24bit 5000 300 800
+			return 0
+			;;
+	esac
+}
 
 function printMainMenu(){
 	msg="\n\n"
@@ -1055,12 +1249,9 @@ function printMainMenu(){
 	msg+="\n\nMake a selection from the below options.\n"
 	msg+="1. Install and configure a new DASH Masternode.\n"
 	msg+="2. Check system status.\n"
-	msg+="3. (Re)install dash binaries, use this for updates.\n"
-	msg+="4. (Re)install sentinel and update it.\n"
-	msg+="5. Review and edit your dash.conf file.\n"
-	msg+="6. Reindex dashd.\n"
-	msg+="7. View debug.log.\n"
-	msg+="8. Bootstrap this server from another VPS running a fully synced DASH Masternode.\n"
+	msg+="3. Manage your masternode.\n"
+	msg+="4. Reclaim free disk space.\n"
+	msg+="5. Bootstrap this server from another VPS running a fully synced DASH Masternode.\n"
 	msg+="9. Quit.\n"
 	echo -e "$msg"
 }
@@ -1069,7 +1260,7 @@ function printMainMenu(){
 function mainMenu (){
 	while :
 	do
-		echo -en "Choose option [1 2 3 4 5 6 7 8 [${bldwht}9$txtrst]]: "
+		echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
 		read -n1 option
 		echo -e "\n$option">>"$LOGFILE"
 		echo
@@ -1092,109 +1283,14 @@ function mainMenu (){
 				return 0
 				;;
 			3)
-				msg="This will re-install your dash binaries.  Use this option if you wish to\n"
-				msg+="update the dash daemon, the dashd service will be automatically restarted\n"
-				msg+="after the update.\n\n"
-				msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
-				echo -en "$msg"
-				read -n1 option
-				echo -e "\n$option">>"$LOGFILE"
-				option=${option:-N}
-				[[ $option = [yY] ]] || return 0
-				echo
-				downloadInstallDash
-				if (( $? == 0 ));then
-					echo "Installation has been successful, restarting the dashd daemon..."
-					sudo systemctl stop dashd
-					sudo systemctl start dashd
-				else
-					echo "Installation of dashd has been unsuccessful, please investigate or seek support!"
-				fi
-				read -s -n1 -p "Press any key to continue. "
-				echo
+				while manageMasternodeMenu;do : ;done
 				return 0
 				;;
 			4)
-				msg="This will update and replace your sentinel with a new one from Github.\n"
-				msg+="Use this option if your sentinel is not working right, or if you need to\n"
-				msg+="upgrade it.\n\n"
-				msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
-				echo -en "$msg"
-				read -n1 option
-				echo -e "\n$option">>"$LOGFILE"
-				option=${option:-N}
-				[[ $option = [yY] ]] || return 0
-				echo
-				installSentinel
-				if (( $? == 0 ));then
-					echo "Installation has been successful."
-				else
-					echo "Installation of sentinel has been unsuccessful, please investigate or seek support!"
-				fi
-				read -s -n1 -p "Press any key to continue. "
-				echo
+				reclaimFreeDiskSpace
 				return 0
 				;;
 			5)
-				echo "******************** "$DASH_CONF" ********************"
-				sudo cat "$DASH_CONF"
-				echo "******************** "$DASH_CONF" ********************"
-				msg="\nAbove is your existing dash.conf, if you wish to edit it press Y any other key will\n"
-				msg+="return to the main menu. [y [${bldwht}N${txtrst}]] "
-				echo -en "$msg"
-				read -n1 option
-				echo -e "\n$option">>"$LOGFILE"
-				option=${option:-N}
-				[[ $option = [yY] ]] || return 0
-				echo
-				editDashConf
-				sudo systemctl stop dashd
-				sudo systemctl start dashd
-				read -s -n1 -p "Done!  Press any key to continue. "
-				echo
-				return 0
-				;;
-			6)
-				msg="As a last resort if your node is stuck, you can choose to reindex it.\n"
-				msg+="This process will take about 3 hours depending on your hardware.\n"
-				msg+="You can monitor the progress from the status page...\n"
-				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
-				echo -en "$msg"
-				read -n1 option
-				echo -e "\n$option">>"$LOGFILE"
-				option=${option:-N}
-				[[ $option = [yY] ]] || return 0
-				echo
-				sudo systemctl stop dashd
-				sudo -i -u dash bash -c "dashd -reindex"
-				read -s -n1 -p "Reindex has started!  Press any key to continue. "
-				echo
-				return 0
-				;;
-			7)
-				msg="This option will open the debug.log file in less from when the node\n"
-				msg+="was last started. To navigate the log file use the below hints.\n"
-				msg+="G - Pressing uppercase G will take you to the end of the log file to see the most recent entries.\n"
-				msg+="g - Pressing lowercase g takes you to the start (oldest entries).\n"
-				msg+="q - To quit.\n"
-				msg+="/ - Typing / and search term will search the file for that term.\n"
-				msg+="n - When in search mode n will skip to the next occurance of the term.\n"
-				msg+="b - When in search mode b will go back to the previous occurance of the term.\n"
-#				msg+="F - Follow mode, prints new log entries as they occur in real-time.\n"
-#				msg+="To cancel follow mode, press CTRL + C and then q to close less.\n\n"
-				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
-				echo -en "$msg"
-				read -n1 option
-				echo -e "\n$option">>"$LOGFILE"
-				option=${option:-N}
-				[[ $option = [yY] ]] || return 0
-				echo
-				displayDebugLog
-				read -s -n1 -p "Press any key to continue. "
-				echo
-				return 0
-				;;
-			8)
 				msg="This option will allow you to bootstrap this masternode with blockchain\n"
 				msg+="data from another masternode.  This can make syncing a lot faster.\n"
 				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
@@ -1228,7 +1324,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v0.7 20201017"
+VERSION="v0.8 20201113"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
@@ -1241,20 +1337,21 @@ exec 3>&1
 exec 4>&2
 {
 	echo -e "$ZEUS\t$VERSION"
+	getLogo
 	osCheck
 	OS=$?;export OS
-	(( $OS <= 1 ))|| exit $OS
+	(( OS <= 1 ))|| exit $OS
 	idCheck
 	idcheckretval=$?
 	retval=0
-	while (( $retval != 9 ))
+	while (( retval != 9 ))
 	do
 		printBanner
-		if (( $idcheckretval == 0 ))
+		if (( idcheckretval == 0 ))
 		then
 			printMainMenu
 			mainMenu
-		elif (( $idcheckretval == 1 ))
+		elif (( idcheckretval == 1 ))
 		then
 			printRootMenu
 			rootMenu
