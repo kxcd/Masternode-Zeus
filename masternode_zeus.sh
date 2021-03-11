@@ -575,9 +575,11 @@ User=dash
 Group=dash
 
 # Make dashd less likely to be killed when RAM is low.
-OOMScoreAdjust=-1000
+#OOMScoreAdjust=-1000
+# But there seems to be a memory leak in dashd and it is better to bounce it
+# when the system runs out of RAM.
 
-ExecStart=/opt/dash/bin/dashd -pid=/home/dash/.dashcore/dashd.pid
+ExecStart=/opt/dash/bin/dashd
 # Time that systemd gives a process to start before shooting it in the head
 TimeoutStartSec=10m
 
@@ -661,7 +663,7 @@ installCrontab(){
 	date_time=\$(date +"%Y%m%d%H%M")
 	crontab -l>crontab-backup-\${date_time}
 	{ sed '/venv\/bin\/python.*bin\/sentinel.py/d' crontab-backup-\${date_time};\
-	echo '*/10 * * * * { test -f ~/.dashcore/dashd.pid&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1';}|\
+	echo '*/10 * * * * { [[ -f ~/.dashcore/dashd.pid ]]&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1';}|\
 	crontab -&&\
 	echo "Successfully installed cron job."
 EOF
@@ -1033,6 +1035,7 @@ function printBanner(){
 		# In order for catimg to work, we have to restore the file descriptors for stdin and stdout.
 		exec 1>&3
 		exec 2>&4
+		#echo " $VERSION"
 		catimg /tmp/dash_logo_2018_rgb_for_screens.png
 		exec 2>&1
 		if (($(tput cols)>90));then
@@ -1324,7 +1327,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v0.8 20201113"
+VERSION="v0.9 20210311"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
