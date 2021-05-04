@@ -320,6 +320,7 @@ function updateSystem(){
 
 	sudo apt-get update &&\
 	sudo apt-get upgrade &&\
+	sudo apt-get remove screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g ;\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Updates were applied successfully..." ||\
 	{ echo "There was an error applying the updates, exiting...";exit 1; }
@@ -810,7 +811,7 @@ showStatus(){
 
 	if (( num_dashd_procs > 0 ));then
 		masternode_status=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.status' 2>/dev/null" 2>/dev/null)
-		(( ${#masternode_status} == 0 )) && masternode_status="Unknown"
+		(( ${#masternode_status} == 0 )) && masternode_status=$(sudo -i -u dash bash -c "dash-cli masternode status 2>&1|tail -1" 2>/dev/null)
 	else
 		masternode_status="dashd down"
 	fi
@@ -935,6 +936,10 @@ EOF
 }
 
 reclaimFreeDiskSpace(){
+	# Removing this list of programs should be safe for running of masternode and infact should make it more secure since
+	# tmux and screen are good ways for hackers to hide their running sessions.
+	echo -e "Uninstalling unnecessary programs...\n"
+	sudo apt-get remove screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g
 	# A bunch of things we can do to safely reclaim some disk space.
 	# Clean out stale app files and the apt cache.
 	echo -e "Freeing up disk space...\n"
@@ -1327,7 +1332,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v0.9 20210311"
+VERSION="v1.0 20210504"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
@@ -1368,8 +1373,3 @@ exec 4>&2
 		retval=$?
 	done
 } 2>&1 |tee -a "$LOGFILE"
-
-
-
-
-
