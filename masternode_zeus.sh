@@ -318,16 +318,23 @@ function updateSystem(){
 	msg+="Answer any prompts as appropriate...\n"
 	echo -e "$msg"
 
-	sudo apt-get update &&\
-	sudo apt-get upgrade &&\
-	sudo apt-get remove screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g ;\
-	sudo apt-get autoremove --purge &&\
-	sudo apt-get clean && echo "Updates were applied successfully..." ||\
-	{ echo "There was an error applying the updates, exiting...";exit 1; }
+	# Doing it like this because on a fresh system it is possible a background task is locking the package manager causing this to fail for some time.
+	until sudo apt-get update&&sudo apt-get upgrade;do echo "Trying again, please wait...";sleep 30;done
 
+	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
+	echo "Uninstalling unnecessary programs..."
+	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
+	do
+		echo "*** Removing $package ***"
+		sudo apt-get -y remove $package
+	done
+
+	sudo apt-get -y autoremove --purge
+	sudo apt-get clean
+	echo "Finished applying system updates."
 
 	echo " Install additional packages needed for masternode operation..."
-	sudo apt-get install ufw python3 virtualenv git unzip pv bc jq speedtest-cli catimg &&\
+	sudo apt-get -y install ufw python3 virtualenv git curl wget unzip pv bc jq speedtest-cli catimg &&\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
 	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
@@ -938,8 +945,13 @@ EOF
 reclaimFreeDiskSpace(){
 	# Removing this list of programs should be safe for running of masternode and infact should make it more secure since
 	# tmux and screen are good ways for hackers to hide their running sessions.
-	echo -e "Uninstalling unnecessary programs...\n"
-	sudo apt-get remove screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g
+	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
+	echo "Uninstalling unnecessary programs..."
+	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
+	do
+		echo "*** Removing $package ***"
+		sudo apt-get -y remove $package
+	done
 	# A bunch of things we can do to safely reclaim some disk space.
 	# Clean out stale app files and the apt cache.
 	echo -e "Freeing up disk space...\n"
@@ -950,6 +962,7 @@ reclaimFreeDiskSpace(){
 	# Shrink logs.
 	sudo journalctl --disk-usage
 	sudo journalctl --vacuum-time=2d
+	sudo truncate -s0 /var/log/btmp
 
 	msg="\nThe app cache and the journal logs have been cleaned.\n"
 	msg+="To recover more space, you should reboot your VPS now.\n"
@@ -1100,7 +1113,6 @@ function rootMenu(){
 		case $option in
 			1)
 				createMnoUser
-				#createUsers
 				return 0
 				;;
 			9)
@@ -1332,7 +1344,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.0 20210504"
+VERSION="v1.0.1 20210602"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
