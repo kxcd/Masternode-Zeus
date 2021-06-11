@@ -326,7 +326,7 @@ function updateSystem(){
 	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
 	do
 		echo "*** Removing $package ***"
-		sudo apt-get -y remove "$package"
+		sudo apt-get -y remove "$package" --purge
 	done
 
 	# After removing all this cruft, I found the following was also needed to make systemd stop trying to bring up removed services.
@@ -964,7 +964,7 @@ reclaimFreeDiskSpace(){
 	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
 	do
 		echo "*** Removing $package ***"
-		sudo apt-get -y remove $package
+		sudo apt-get -y remove $package --purge
 	done
 	# A bunch of things we can do to safely reclaim some disk space.
 	# Clean out stale app files and the apt cache.
@@ -1358,7 +1358,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.1.0 20210612"
+VERSION="v1.1.1 20210612"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
