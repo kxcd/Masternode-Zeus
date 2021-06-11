@@ -326,7 +326,13 @@ function updateSystem(){
 	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
 	do
 		echo "*** Removing $package ***"
-		sudo apt-get -y remove $package
+		sudo apt-get -y remove "$package"
+	done
+
+	# After removing all this cruft, I found the following was also needed to make systemd stop trying to bring up removed services.
+	for service in apparmor.service console-setup.service snap.lxd.activate.service
+	do
+		sudo systemctl disable "$service"
 	done
 
 	sudo apt-get -y autoremove --purge
@@ -334,7 +340,7 @@ function updateSystem(){
 	echo "Finished applying system updates."
 
 	echo " Install additional packages needed for masternode operation..."
-	sudo apt-get -y install ufw python3 virtualenv git curl wget unzip pv bc jq speedtest-cli catimg &&\
+	sudo apt-get -y install ufw python3 virtualenv git curl wget tor unzip pv bc jq speedtest-cli catimg &&\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
 	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
@@ -351,6 +357,7 @@ function enableFireWall(){
 		sudo ufw allow ssh/tcp &&\
 		sudo ufw limit ssh/tcp &&\
 		sudo ufw allow 9999/tcp &&\
+		sudo ufw allow 9050/tcp &&\
 		sudo ufw logging on &&\
 		sudo ufw enable &&\
 		echo "Firewall configured successfully!" ||\
@@ -362,12 +369,12 @@ function enableFireWall(){
 
 function configureSwap(){
 	echo "Checking your available swap space..."
-	if (( $(free -m|awk '/Swap/ {print $2}') < 1024 ))
+	if (( $(free -m|awk '/Swap/ {print $2}') < 2048 ))
 	then
-		echo "Adding 2GB swap..."
+		echo "Adding 3GB swap..."
 		swapfile="/var/swapfile"
 		[[ -f /var/swapfile ]] && swapfile="$swapfile.$RANDOM"
-		sudo bash -c "fallocate -l 2G \"$swapfile\"&&\
+		sudo bash -c "fallocate -l 3G \"$swapfile\"&&\
 		chmod 600 \"$swapfile\"&&\
 		mkswap \"$swapfile\"&&\
 		swapon \"$swapfile\"&&\
@@ -377,6 +384,24 @@ function configureSwap(){
 	else
 		echo "You already have enough swap space."
 	fi
+}
+
+# Re-runable function to configure TOR for dash.
+configureTOR(){
+	echo "Configuring TOR..."
+	x=$(grep ^Co[no][tk][ri] /etc/tor/torrc |wc -l)
+	if((x != 3));then
+		sudo bash -c "echo -e 'ControlPort 9051\nCookieAuthentication 1\nCookieAuthFileGroupReadable 1' >> /etc/tor/torrc"
+	fi
+	sudo systemctl enable --now tor
+	sleep 1
+	group=$(procs=$(ps -A -O pid,ruser:12,rgroup:12,comm);grep $(pidof tor)<<<"$procs"|awk '{print $3}')
+	if((PIPESTATUS == 0));then
+		sudo usermod -aG "$group" dash
+	else
+		echo "Error detecting the tor group name."
+	fi
+	sudo systemctl restart tor
 }
 
 # Returns:-
@@ -463,8 +488,8 @@ function configurePATH(){
 	echo "Adding Dash binaries to the PATH of the dash user..."
 	osCheck >/dev/null 2>&1
 	if (( $? <= 1 ));then
-		sudo bash -c "grep -q '^PATH=/opt/dash/bin:\$PATH' /home/dash/.profile||\
-			echo 'PATH=/opt/dash/bin:\$PATH'>>/home/dash/.profile"
+		sudo bash -c "grep -q '^PATH=\$PATH:/opt/dash/bin' /home/dash/.profile||\
+			echo 'PATH=\$PATH:/opt/dash/bin'>>/home/dash/.profile"
 	else
 		echo "Your operating system is not supported, please edit your PATH manually."
 	fi
@@ -534,6 +559,9 @@ daemon=1
 masternodeblsprivkey=$bls_key
 externalip=$ip
 #----
+proxy=127.0.0.1:9050
+torcontrol=127.0.0.1:9051
+#----
 EOF"
 }
 
@@ -570,10 +598,9 @@ function createDashdService(){
 	sudo bash -c "cat >/etc/systemd/system/dashd.service<<\"EOF\"
 [Unit]
 Description=Dash Core Daemon
+Documentation=https://dash.org
 After=syslog.target network.target
 
-# Notes:
-#
 # Watch the daemon service actions in the syslog journal with:
 # sudo journalctl -u dashd.service -f
 
@@ -581,11 +608,6 @@ After=syslog.target network.target
 Type=forking
 User=dash
 Group=dash
-
-# Make dashd less likely to be killed when RAM is low.
-#OOMScoreAdjust=-1000
-# But there seems to be a memory leak in dashd and it is better to bounce it
-# when the system runs out of RAM.
 
 ExecStart=/opt/dash/bin/dashd
 # Time that systemd gives a process to start before shooting it in the head
@@ -598,27 +620,19 @@ ExecStop=/opt/dash/bin/dash-cli stop
 TimeoutStopSec=120
 
 Restart=on-failure
-# If something triggers an auto-restart, let's wait a bit before taking further action
-# Note: This value is in addition to the stop sleep time
 RestartSec=120
 
-# In this interval span of time, we allow systemd to start dashd \"burst\" number
-# of times. With Dash we really only want one instance started, so... let's
-# really limit this. But we want to give systemd some room to attempt to
-# correct things. To be honest, I think the way things are configured between
-# these settings and TimeoutStartSec, only one instance will be initiated.
+# Allow for three failures in five minutes before trying to spawn another instance
 StartLimitInterval=300
 StartLimitBurst=3
+
+# If the OOM kills this process, systemd should restart it.
+OOMPolicy=continue
 
 PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
-
-# Really useful:
-# * https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files
-# * https://www.freedesktop.org/software/systemd/man/systemd.service.html
-# * man systemd, man systemd.service, and man systemd.unit
 
 EOF"
 
@@ -626,8 +640,7 @@ EOF"
 	# on the VPS and ask it to enable `dashd` at boot and to launch it for the first time.
 
 	sudo systemctl daemon-reload &&\
-	sudo systemctl enable dashd &&\
-	sudo systemctl start dashd &&\
+	sudo systemctl enable --now dashd &&\
 	echo "Dash is now installed as a system service and initializing..." ||\
 	echo "There was a problem registering and starting the dashd daemon via systemd."
 }
@@ -688,6 +701,7 @@ installMasternode(){
 	updateSystem
 	enableFireWall
 	configureSwap
+	configureTOR
 	addSysCtl && rebootSystem
 
 	sudo -u dash whoami >/dev/null 2>&1
@@ -1031,7 +1045,7 @@ function printBanner(){
 	if [[ -z $COLOUR_LOGO ]];then
 		# Gotta escape the back ticks ` with \
 		echo -e "$bldwht"\
-		"  _____                _____   _    _                        $VERSION\n"\
+		"  _____                _____   _    _                      $VERSION\n"\
 		" |  __ \      /\      / ____| | |  | |                                    \n"\
 		" | |  | |    /  \    | (___   | |__| |                                    \n"\
 		" | |  | |   / /\ \    \___ \  |  __  |                                    \n"\
@@ -1344,7 +1358,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.0.1 20210602"
+VERSION="v1.1.0 20210612"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
