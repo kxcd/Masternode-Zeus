@@ -4,6 +4,7 @@
 # Licence: GPLv2
 # The author of the software is the owner of the Dash Address: XnpT2YQaYpyh7F9twM6EtDMn1TCDCEEgNX
 
+# shellcheck disable=SC1117,SC2181
 
 # Define some colours
 
@@ -50,7 +51,7 @@ busyLoop(){
 	i=$1
 	while ((i--)) ;do
 		c=$(( RANDOM % 16 ))
-		echo -en "\e[48;5;${c}m "
+		echo -en "\\e[48;5;${c}m "
 	done
 	echo -e '\e[0m'
 }
@@ -77,7 +78,7 @@ printGraduatedProgressBar(){
 		progress=0
 		for ((i=0; i<$1; i++));do spaces+=" ";done
 		[[ ! -z "$3" ]] && text="$3 "
-		echo -en "\e[1;37m$text[$spaces]\e[0m\e[$(($1+1))D"
+		echo -en "\\e[1;37m${text}[$spaces]\\e[0m\\e[$(($1+1))D"
 	fi
 	step=$((100 / $1))
 	# Due to rounding, sometimes the step is too small causing overshoot
@@ -85,7 +86,7 @@ printGraduatedProgressBar(){
 	(($((step * $1))<100))&&((step++))
 	while((progress<$2));do
 		((progress+=step))
-		echo -en "\e[48;2;0;$((progress * 2 + 20));0m "
+		echo -en "\\e[48;2;0;$((progress * 2 + 20));0m "
 	done
 
 	(( $2 == 100 )) && echo -e '\e[0m'
@@ -126,7 +127,7 @@ busyLoop24bit(){
 		((g<0))&&g=0;((g>255))&&g=255
 		((b<0))&&b=0;((b>255))&&b=255
 
-		echo -en "\e[48;2;$r;$g;$b""m "
+		echo -en "\\e[48;2;$r;$g;$b""m "
 	done
 	echo -e '\e[0m'
 }
@@ -142,10 +143,10 @@ busyLoop24bit(){
 
 function idCheck(){
 	(( $(id -u) == 0 )) && return 1
-	msg="$ZEUS is now checking if you have sudo access to the root account\n"
-	msg+="from this user $(whoami). You may be prompted for your password now.\n"
-	msg+="Enter your user's password when prompted NO CHANGES will be made at this time,\n"
-	msg+="this is just a check.\n"
+	msg="$ZEUS is now checking if you have sudo access to the root account\\n"
+	msg+="from this user $(whoami). You may be prompted for your password now.\\n"
+	msg+="Enter your user's password when prompted NO CHANGES will be made at this time,\\n"
+	msg+="this is just a check.\\n"
 	echo -e "$msg"
 	sid=$(sudo id -u)
 	(( $? != 0 )) && return 2
@@ -182,16 +183,16 @@ function osCheck(){
 # then it will be used as the length of the string.
 function getRandomString(){
 	length=${1:-32}
-	< /dev/urandom tr -dc A-Za-z0-9 | head -c${length};echo
+	< /dev/urandom tr -dc A-Za-z0-9 | head -c"${length}";echo
 }
 
 createMnoUser(){
-	msg="Creating the mno user.\n"
-	msg+="If you have not yet reset your root password, it is recommended to do so now.\n"
+	msg="Creating the mno user.\\n"
+	msg+="If you have not yet reset your root password, it is recommended to do so now.\\n"
 	msg+="Would you like to reset the password of the root user? [[${bldwht}Y${txtrst}] n] "
 	echo -en "$msg"
-	read -n1 option
-	echo -e "\n$option">>"$LOGFILE"
+	read -r -n1 option
+	echo -e "\\n$option">>"$LOGFILE"
 	echo
 	option=${option:-Y}
 	[[ $option = [yY] ]] && while ! passwd ;do : ;done
@@ -202,8 +203,8 @@ createMnoUser(){
 		echo "Found existing mno user on this system."
 		grep mno /etc/group|grep -q sudo || { echo "Adding mno to the sudo group";usermod -aG sudo mno; }
 		echo -en "Would you like to reset the password of the mno user? [y [${bldwht}N${txtrst}]] "
-		read -n1 option
-		echo -e "\n$option">>"$LOGFILE"
+		read -r -n1 option
+		echo -e "\\n$option">>"$LOGFILE"
 		echo
 		option=${option:-Y}
 		[[ $option = [yY] ]] && setpasswd="Y"
@@ -213,8 +214,8 @@ createMnoUser(){
 		groupdel mno >/dev/null 2>&1
 		useradd -m -c "Dash Admin" mno -s /bin/bash -G sudo
 		if (( $? != 0 ));then
-			msg="Could not create user, this is bad.\n"
-			msg+="There may be some remnants of it in the passwd or group or shadow files.\n"
+			msg="Could not create user, this is bad.\\n"
+			msg+="There may be some remnants of it in the passwd or group or shadow files.\\n"
 			msg+="Check those files and clean them up and try again."
 			echo -e "$msg"
 			exit 1
@@ -223,28 +224,28 @@ createMnoUser(){
 	fi
 
 	if [[ ! -z $setpasswd ]];then
-		msg="You will now be prompted to set a password for the mno user.\n"
-		msg+="Choose a long password and write it down, do not loose this password.\n"
-		msg+="It should be at least 14 characters long.  Below is a secure and unique password\n"
-		msg+="you can use for this account, be sure to keep a copy in your password vault if you do.\n\n"
-		msg+="${bldwht}$(getRandomString 32)${txtrst}\n\n"
+		msg="You will now be prompted to set a password for the mno user.\\n"
+		msg+="Choose a long password and write it down, do not loose this password.\\n"
+		msg+="It should be at least 14 characters long.  Below is a secure and unique password\\n"
+		msg+="you can use for this account, be sure to keep a copy in your password vault if you do.\\n\\n"
+		msg+="${bldwht}$(getRandomString 32)${txtrst}\\n\\n"
 		echo -e "$msg"
 		while ! passwd mno;do : ;done
 		echo
-		read -s -n1 -p "Press any key to continue. "
+		read -r -s -n1 -p "Press any key to continue. "
 		echo
 	fi
 	unset setpasswd
 
 
 	[[ ! -d /home/mno/bin ]] && mkdir /home/mno/bin
-	yes|cp "$ZEUS" /home/mno/bin&&chown -R mno:mno /home/mno/bin
+	cp "$ZEUS" /home/mno/bin&&chown -R mno:mno /home/mno/bin
 
-	msg="The mno user is now ready to use, please logout and log back in as the mno user\n"
-	msg+="to continue with setting up your masternode. This script has been copied to the bin directory of the\n"
-	msg+="mno user, when you have logged back in as mno, you can continue this script by typing in ${bldwht}$(basename "$ZEUS")${txtrst}\n"
+	msg="The mno user is now ready to use, please logout and log back in as the mno user\\n"
+	msg+="to continue with setting up your masternode. This script has been copied to the bin directory of the\\n"
+	msg+="mno user, when you have logged back in as mno, you can continue this script by typing in ${bldwht}$(basename "$ZEUS")${txtrst}\\n"
 	echo -e "$msg"
-	read -s -n1 -p "Press any key to continue. "
+	read -r -s -n1 -p "Press any key to continue. "
 	echo
 }
 
@@ -256,8 +257,8 @@ createDashUser(){
 		echo "Found existing dash user on this system."
 		sudo usermod -aG dash dash
 		echo -en "Would you like to reset the password of the dash user? [[${bldwht}Y${txtrst}] n] "
-		read -n1 option
-		echo -e "\n$option">>"$LOGFILE"
+		read -r -n1 option
+		echo -e "\\n$option">>"$LOGFILE"
 		echo
 		option=${option:-Y}
 		[[ $option = [yY] ]] && setpasswd="Y"
@@ -267,8 +268,8 @@ createDashUser(){
 		sudo groupdel dash >/dev/null 2>&1
 		sudo useradd -m -c dash dash -s /bin/bash
 		if (( $? != 0 ));then
-			msg="Could not create user, this is bad.\n"
-			msg+="There may be some remnants of it in the passwd or group or shadow files.\n"
+			msg="Could not create user, this is bad.\\n"
+			msg+="There may be some remnants of it in the passwd or group or shadow files.\\n"
 			msg+="Check those files and clean them up and try again."
 			echo -e "$msg"
 			exit 1
@@ -278,14 +279,14 @@ createDashUser(){
 
 
 	if [[ ! -z $setpasswd ]];then
-		msg="The password for the dash user should be set to something completely random.\n"
-		msg+="You will never need it for anything. A random password has been generated for you below\n"
-		msg+="and set for the dash user you can keep a copy if you like, but it is not required.\n"
+		msg="The password for the dash user should be set to something completely random.\\n"
+		msg+="You will never need it for anything. A random password has been generated for you below\\n"
+		msg+="and set for the dash user you can keep a copy if you like, but it is not required.\\n"
 		echo -e "$msg"
 		dashpw=$(getRandomString 32)
-		echo -e "${bldwht}$dashpw${txtrst}\n\n"
+		echo -e "${bldwht}$dashpw${txtrst}\\n\\n"
 		echo "dash:$dashpw"|sudo chpasswd
-		read -s -n1 -p "Press any key to continue. "
+		read -r -s -n1 -p "Press any key to continue. "
 		echo
 	fi
 	unset setpasswd
@@ -299,9 +300,9 @@ createDashUser(){
 function preventRootSSHLogins(){
 	grep ^PermitRootLogin /etc/ssh/sshd_config |tail -1|grep -q "PermitRootLogin no"\
 	&& { echo "Login as root via ssh is already disabled, continuing...";return 0;}
-	msg="**** Disabling root logins from ssh connections. ****\n\n"
-	msg+="For security reasons we want to disable remote logins to the root user from now on.\n"
-	msg+="The root user exists on every UNIX/Linux machine and its password is being brute force\n"
+	msg="**** Disabling root logins from ssh connections. ****\\n\\n"
+	msg+="For security reasons we want to disable remote logins to the root user from now on.\\n"
+	msg+="The root user exists on every UNIX/Linux machine and its password is being brute force\\n"
 	msg+="attacked all the time!  From now on you must *always* logon with the $(whoami) user."
 	echo -e "$msg"
 	if (( $(id -u) != 0 )); then
@@ -310,25 +311,21 @@ function preventRootSSHLogins(){
 		sed -i 's/.*PermitRootLogin [ny][oe].*/PermitRootLogin no/g' /etc/ssh/sshd_config||\
 		echo \"PermitRootLogin no\">>/etc/ssh/sshd_config"
 	else echo "Only run this block as your Dash Admin (mno) user, not root."; fi
-	read -s -n1 -p "Press any key to continue. ";echo
+	read -r -s -n1 -p "Press any key to continue. ";echo
 }
 
-function updateSystem(){
-	msg="Updating your system using apt update/upgrade.\n"
-	msg+="Answer any prompts as appropriate...\n"
-	echo -e "$msg"
-
-	# Doing it like this because on a fresh system it is possible a background task is locking the package manager causing this to fail for some time.
-	until sudo apt-get update&&sudo apt-get upgrade;do echo "Trying again, please wait...";sleep 30;done
-
+uninstallJunkPackages(){
+	# Removing this list of programs should be safe for running of masternode and infact should make it more secure since
+	# tmux and screen are good ways for hackers to hide their running sessions.
+	# Remove polkit because CVE was discovered in it and it seems to be pretty much useless.
 	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
 	echo "Uninstalling unnecessary programs..."
-	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
+	packages="screen tmux rsync usbutils pastebinit netcat netcat-openbsd libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb ntfs-3g snapd libmysqlclient21 g++-10 gcc-10 policykit-1 libpolkit-gobject-1-0"
+	for package in $packages
 	do
 		echo "*** Removing $package ***"
 		sudo apt-get -y remove "$package" --purge
 	done
-
 	# After removing all this cruft, I found the following was also needed to make systemd stop trying to bring up removed services.
 	for service in apparmor.service console-setup.service snap.lxd.activate.service
 	do
@@ -336,7 +333,20 @@ function updateSystem(){
 	done
 
 	sudo apt-get -y autoremove --purge
+	sudo apt-get autoclean
 	sudo apt-get clean
+}
+
+function updateSystem(){
+	msg="Updating your system using apt update/upgrade.\\n"
+	msg+="Answer any prompts as appropriate...\\n"
+	echo -e "$msg"
+
+	# Doing it like this because on a fresh system it is possible a background task is locking the package manager causing this to fail for some time.
+	until sudo apt-get update&&sudo apt-get upgrade;do echo "Trying again, please wait...";sleep 30;done
+
+	uninstallJunkPackages
+
 	echo "Finished applying system updates."
 
 	echo " Install additional packages needed for masternode operation..."
@@ -389,7 +399,7 @@ function configureSwap(){
 # Re-runable function to configure TOR for dash.
 configureTOR(){
 	echo "Configuring TOR..."
-	x=$(grep ^Co[no][tk][ri] /etc/tor/torrc |wc -l)
+	x=$(grep -c ^Co[no][tk][ri] /etc/tor/torrc)
 	if((x != 3));then
 		sudo bash -c "echo -e 'ControlPort 9051\nCookieAuthentication 1\nCookieAuthFileGroupReadable 1' >> /etc/tor/torrc"
 	fi
@@ -414,10 +424,10 @@ function addSysCtl(){
 }
 
 function rebootSystem(){
-	msg="A reboot is required at this time to allow the changes to take effect\n"
-	msg+="and to verify the system is still working correctly.\n"
+	msg="A reboot is required at this time to allow the changes to take effect\\n"
+	msg+="and to verify the system is still working correctly.\\n"
 	echo -e "$msg"
-	read -s -n1 -p "Press any key when ready to reboot. "
+	read -r -s -n1 -p "Press any key when ready to reboot. "
 	echo
 	sudo reboot
 }
@@ -438,7 +448,7 @@ downloadInstallDash(){
 			arch="x86_64-linux-gnu"
 			;;
 		*)
-			msg="ERROR: Machine type ($mach) not recognised.\n"
+			msg="ERROR: Machine type ($mach) not recognised.\\n"
 			msg+="Could not download the dashcore binaries.  Aborting..."
 			echo -e "$msg"
 			return 1
@@ -503,13 +513,13 @@ function createDashConf(){
 		echo "******************** $DASH_CONF ********************"
 		sudo cat "$DASH_CONF"
 		echo "******************** $DASH_CONF ********************"
-		msg="A dash.conf file already exists at $DASH_CONF\n"
-		msg+="It is displayed on the screen above this text. Would you like to overwrite\n"
-		msg+="this file? Recommend to not overwrite, especially if your masternode is working.\n"
+		msg="A dash.conf file already exists at $DASH_CONF\\n"
+		msg+="It is displayed on the screen above this text. Would you like to overwrite\\n"
+		msg+="this file? Recommend to not overwrite, especially if your masternode is working.\\n"
 		msg+="Overwrite dash.conf? [y [${bldwht}N${txtrst}]] "
 		echo -en "$msg"
-		read -n1 option
-		echo -e "\n$option">>"$LOGFILE"
+		read -r -n1 option
+		echo -e "\\n$option">>"$LOGFILE"
 		echo
 		option=${option:-N}
 		if [[ $option = [nN] ]]
@@ -528,18 +538,18 @@ function createDashConf(){
 	rpcpassword=$(getRandomString 40)
 	ip=$(curl -s http://ipecho.net/plain)
 	(( $? != 0 )) && ip="XXX.XXX.XXX.XXX"
-	msg="Next you need your bls private that you got from the 'bls generate' command\n"
-	msg+="in the core walletor from DMT.\n"
-	msg+="Note: This is NOT your collateral private key !\n"
-	msg="Please enter your bls private (secret) key, if you don't have it ready,\n"
+	msg="Next you need your bls private that you got from the 'bls generate' command\\n"
+	msg+="in the core walletor from DMT.\\n"
+	msg+="Note: This is NOT your collateral private key !\\n"
+	msg="Please enter your bls private (secret) key, if you don't have it ready,\\n"
 	msg+="just type in 'default' and edit your $DASH_CONF file later."
 	echo -e "$msg"
 	option='n'
 	until [[ "$option" = 'Y' || "$option" = 'y' ]];do
-		read -n64 -p "bls key " bls_key
-		echo -en "You entered a bls key of ${bldwht}\"$bls_key\"${txtrst}.\nPress 'Y' to accept, '${bldwht}N${txtrst}' to re-enter. "
-		read -n1 option
-		echo -e "\n$option">>"$LOGFILE"
+		read -r -n64 -p "bls key " bls_key
+		echo -en "You entered a bls key of ${bldwht}\"$bls_key\"${txtrst}.\\nPress 'Y' to accept, '${bldwht}N${txtrst}' to re-enter. "
+		read -r -n1 option
+		echo -e "\\n$option">>"$LOGFILE"
 		echo
 		option=${option:-N}
 	done
@@ -566,10 +576,10 @@ EOF"
 }
 
 function editDashConf(){
-	msg="Once you are done editing this file exit with CTRL + X and answer Y to save,\n"
+	msg="Once you are done editing this file exit with CTRL + X and answer Y to save,\\n"
 	msg+="if you're using vi, press ESC, then type in :wq to write and quit."
 	echo -e "$msg"
-	read -s -n1 -p "Press any key to continue. "
+	read -r -s -n1 -p "Press any key to continue. "
 	echo
 	if test -x $(which nano);then
 		# Since nano wont work right without a stderr, I am re-establishing a stderr from
@@ -706,10 +716,10 @@ installMasternode(){
 
 	sudo -u dash whoami >/dev/null 2>&1
 	if (( $? != 0 ));then
-		msg="Cannot run a command as the dash user. Check that the dash user exists\n"
+		msg="Cannot run a command as the dash user. Check that the dash user exists\\n"
 		msg+="and that this user $(whoami) has the correct permissions to sudo."
 		echo -e "$msg"
-		read -s -n1 -p "Press any key to exit. "
+		read -r -s -n1 -p "Press any key to exit. "
 		echo
 		return 2
 	fi
@@ -731,7 +741,7 @@ installMasternode(){
 	installCrontab
 	installSentinel
 
-	read -s -n1 -p "Installation has completed successfully, press any key to continue. "
+	read -r -s -n1 -p "Installation has completed successfully, press any key to continue. "
 	echo
 }
 
@@ -756,7 +766,7 @@ convertBlocksToTime(){
 showStatus(){
 
 	printGraduatedProgressBar 50 0 "Working..."
-	cpu=$(printf '%.2f%%' $(echo "scale=4;$(awk '{print $2}' /proc/loadavg)/$(grep ^processor /proc/cpuinfo |wc -l)*100"|bc))
+	cpu=$(printf '%.2f%%' $(echo "scale=4;$(awk '{print $2}' /proc/loadavg)/$(grep -c ^processor /proc/cpuinfo)*100"|bc))
 	printGraduatedProgressBar 50 5
 	disk=$(df -h)
 	printGraduatedProgressBar 50 10
@@ -849,10 +859,9 @@ showStatus(){
 
 	if (( num_dashd_procs > 0 ));then
 		enabled_mns=$(sudo -i -u dash bash -c "dash-cli masternode count 2>/dev/null|jq -r '.enabled' 2>/dev/null" 2>/dev/null)
-		total_mns=$(sudo -i -u dash bash -c "dash-cli masternode count 2>/dev/null|jq -r '.total' 2>/dev/null" 2>/dev/null)
-		(( $? != 0 )) || [[ ! "$enabled_mns" =~ ^[0-9]+$ ]] ||  ((${#enabled_mns} > 8 || ${#enabled_mns} == 0 )) && { enabled_mns="Unknown";total_mns="Unknown";}
+		(( $? != 0 )) || [[ ! "$enabled_mns" =~ ^[0-9]+$ ]] ||  ((${#enabled_mns} > 8 || ${#enabled_mns} == 0 )) && enabled_mns="Unknown"
 	else
-		enabled_mns="dashd down";total_mns="dashd down"
+		enabled_mns="dashd down"
 	fi
 
 
@@ -889,10 +898,10 @@ showStatus(){
 	printGraduatedProgressBar 50 100
 
 	# Now print it all out nicely formatted on screen.
-	msg="${bldblu}$(date)\n"
-	msg+="=====================================================\n"
-	msg+="================== System info ======================\n"
-	msg+="=====================================================\n"
+	msg="${bldblu}$(date)\\n"
+	msg+="=====================================================\\n"
+	msg+="================== System info ======================\\n"
+	msg+="=====================================================\\n"
 	echo -e "$msg"
 
 	printf "$bldgrn%17s : $txtred%s\n" "CPU Load" "$cpu"
@@ -903,10 +912,10 @@ showStatus(){
 	printf "$bldgrn%17s : $txtred%s\n" "Swap used / size" "$swap_used / $swap_size"
 	printf "$bldgrn%17s : $txtred%s\n" "Swap free" "$swap_free"
 
-	msg="\n"
-	msg+="$bldblu=====================================================\n"
+	msg="\\n"
+	msg+="$bldblu=====================================================\\n"
 	msg+="=================== dashd info ======================\n"
-	msg+="=====================================================\n"
+	msg+="=====================================================\\n"
 	echo -e "$msg"
 
 	printf "$bldgrn%17s : $txtred%s\n" "dashd version" "$dashd_version"
@@ -957,59 +966,42 @@ EOF
 }
 
 reclaimFreeDiskSpace(){
-	# Removing this list of programs should be safe for running of masternode and infact should make it more secure since
-	# tmux and screen are good ways for hackers to hide their running sessions.
-	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
-	echo "Uninstalling unnecessary programs..."
-	for package in screen tmux rsync usbutils pastebinit netcat libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb netcat-openbsd ntfs-3g snapd libmysqlclient21
-	do
-		echo "*** Removing $package ***"
-		sudo apt-get -y remove $package --purge
-	done
-	# A bunch of things we can do to safely reclaim some disk space.
-	# Clean out stale app files and the apt cache.
-	echo -e "Freeing up disk space...\n"
-	sudo apt-get clean
-	sudo apt-get autoclean
-	sudo apt-get autoremove --purge
-	
+	uninstallJunkPackages
 	# Shrink logs.
 	sudo journalctl --disk-usage
 	sudo journalctl --vacuum-time=2d
 	sudo truncate -s0 /var/log/btmp
 
-	msg="\nThe app cache and the journal logs have been cleaned.\n"
-	msg+="To recover more space, you should reboot your VPS now.\n"
+	msg="\\nThe app cache and the journal logs have been cleaned.\\n"
+	msg+="To recover more space, you should reboot your VPS now.\\n"
 	msg+="Press ${bldwht}r${txtrst} to reboot now, any other key to return to the menu."
 	echo -en "$msg"
-	read -n1 option
-	echo -e "\n$option">>"$LOGFILE"
+	read -r -n1 option
+	echo -e "\\n$option">>"$LOGFILE"
 	echo
 	option=${option:-N}
-	if [[ $option = [rR] ]];then
-		sudo reboot
-	fi
+	[[ $option = [rR] ]] && sudo reboot
 }
 
 
 
 bootStrap(){
 
-	read -p "Enter the Dash Admin username of the remote server, eg mno [[mno]] : " remote_user
-	echo -e "\n$remote_user">>"$LOGFILE"
+	read -r -p "Enter the Dash Admin username of the remote server, eg mno [[mno]] : " remote_user
+	echo -e "\\n$remote_user">>"$LOGFILE"
 	remote_user=${remote_user:-mno}
-	read -p "Enter the IP address of the remote server, eg 12.55.65.3 : " remote_ip
-	echo -e "\n$remote_ip">>"$LOGFILE"
-	msg="Is there already a tar file on the remote VPS ready to download?\n"
+	read -r -p "Enter the IP address of the remote server, eg 12.55.65.3 : " remote_ip
+	echo -e "\\n$remote_ip">>"$LOGFILE"
+	msg="Is there already a tar file on the remote VPS ready to download?\\n"
 	msg+="If this is your first time doing this, then just answer no. [y [${bldwht}N${txtrst}]] "
 	echo -en "$msg"
-	read -n1 option
-	echo -e "\n$option">>"$LOGFILE"
+	read -r -n1 option
+	echo -e "\\n$option">>"$LOGFILE"
 	echo
 	option=${option:-N}
 	if [[ $option = [yY] ]];then
-		read -p "Paste in the full path of the tar file eg /tmp/dash.tar.bz2 : " tarfile
-		echo -e "\n$tarfile">>"$LOGFILE"
+		read -r -p "Paste in the full path of the tar file eg /tmp/dash.tar.bz2 : " tarfile
+		echo -e "\\n$tarfile">>"$LOGFILE"
 	else
 		echo "We are ready to connect to the remote server, when prompted enter the password for it."
 		ssh $remote_user@$remote_ip <<EOF
@@ -1120,7 +1112,7 @@ function rootMenu(){
 	while :
 	do
 		echo -en "Choose option [1 [${bldwht}9${txtrst}]]: "
-		read -n1 option
+		read -r -n1 option
 		echo -e "\n$option">>"$LOGFILE"
 		echo
 		option=${option:-9}
@@ -1157,7 +1149,7 @@ manageMasternodeMenu(){
 	msg+="9. Return to Main Menu.\n"
 	echo -e "$msg"
 	echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
-	read -n1 option
+	read -r -n1 option
 	echo -e "\n$option">>"$LOGFILE"
 	echo
 	option=${option:-9}
@@ -1168,7 +1160,7 @@ manageMasternodeMenu(){
 			msg+="after the update.\n\n"
 			msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
 			echo -en "$msg"
-			read -n1 option
+			read -r -n1 option
 			echo -e "\n$option">>"$LOGFILE"
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
@@ -1181,7 +1173,7 @@ manageMasternodeMenu(){
 			else
 				echo "Installation of dashd has been unsuccessful, please investigate or seek support!"
 			fi
-			read -s -n1 -p "Press any key to continue. "
+			read -r -s -n1 -p "Press any key to continue. "
 			echo
 			return 0
 			;;
@@ -1191,7 +1183,7 @@ manageMasternodeMenu(){
 			msg+="upgrade it.\n\n"
 			msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
 			echo -en "$msg"
-			read -n1 option
+			read -r -n1 option
 			echo -e "\n$option">>"$LOGFILE"
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
@@ -1202,7 +1194,7 @@ manageMasternodeMenu(){
 			else
 				echo "Installation of sentinel has been unsuccessful, please investigate or seek support!"
 			fi
-			read -s -n1 -p "Press any key to continue. "
+			read -r -s -n1 -p "Press any key to continue. "
 			echo
 			return 0
 			;;
@@ -1213,7 +1205,7 @@ manageMasternodeMenu(){
 			msg="\nAbove is your existing dash.conf, if you wish to edit it press Y any other key will\n"
 			msg+="return to the main menu. [y [${bldwht}N${txtrst}]] "
 			echo -en "$msg"
-			read -n1 option
+			read -r -n1 option
 			echo -e "\n$option">>"$LOGFILE"
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
@@ -1221,7 +1213,7 @@ manageMasternodeMenu(){
 			editDashConf
 			sudo systemctl stop dashd
 			sudo systemctl start dashd
-			read -s -n1 -p "Done!  Press any key to continue. "
+			read -r -s -n1 -p "Done!  Press any key to continue. "
 			echo
 			return 0
 			;;
@@ -1231,14 +1223,14 @@ manageMasternodeMenu(){
 			msg+="You can monitor the progress from the status page...\n"
 			msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
 			echo -en "$msg"
-			read -n1 option
+			read -r -n1 option
 			echo -e "\n$option">>"$LOGFILE"
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
 			sudo systemctl stop dashd
 			sudo -i -u dash bash -c "dashd -reindex"
-			read -s -n1 -p "Reindex has started!  Press any key to continue. "
+			read -r -s -n1 -p "Reindex has started!  Press any key to continue. "
 			echo
 			return 0
 			;;
@@ -1253,13 +1245,13 @@ manageMasternodeMenu(){
 			msg+="b - When in search mode b will go back to the previous occurance of the term.\n"
 			msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
 			echo -en "$msg"
-			read -n1 option
+			read -r -n1 option
 			echo -e "\n$option">>"$LOGFILE"
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
 			displayDebugLog
-			read -s -n1 -p "Press any key to continue. "
+			read -r -s -n1 -p "Press any key to continue. "
 			echo
 			return 0
 			;;
@@ -1295,7 +1287,7 @@ function mainMenu (){
 	while :
 	do
 		echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
-		read -n1 option
+		read -r -n1 option
 		echo -e "\n$option">>"$LOGFILE"
 		echo
 		option=${option:-9}
@@ -1309,7 +1301,7 @@ function mainMenu (){
 				while [[ "$option" = 'R' || "$option" = 'r' ]];do
 					showStatus
 					echo -en "Press $bldwht""R""$txtrst to check status again or any other key to return to main menu. "
-					read -n1 option
+					read -r -n1 option
 					option=${option:-N}
 					[[ $option = [rR] ]] && echo -e "\e[$((linesOfStatsPrinted +1))A\e[73D"
 				done
@@ -1329,13 +1321,13 @@ function mainMenu (){
 				msg+="data from another masternode.  This can make syncing a lot faster.\n"
 				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
 				echo -en "$msg"
-				read -n1 option
+				read -r -n1 option
 				echo -e "\n$option">>"$LOGFILE"
 				option=${option:-N}
 				[[ $option = [yY] ]] || return 0
 				echo
 				bootStrap
-				read -s -n1 -p "Bootstrap is complete.  Press any key to continue. "
+				read -r -s -n1 -p "Bootstrap is complete.  Press any key to continue. "
 				echo
 				return 0
 				;;
@@ -1358,7 +1350,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.1.1 20210612"
+VERSION="v1.1.2 20210625"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
