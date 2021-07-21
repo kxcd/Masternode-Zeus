@@ -694,7 +694,7 @@ installCrontab(){
 	date_time=\$(date +"%Y%m%d%H%M")
 	crontab -l>crontab-backup-\${date_time}
 	{ sed '/venv\/bin\/python.*bin\/sentinel.py/d' crontab-backup-\${date_time};\
-	echo '*/10 * * * * { [[ -f ~/.dashcore/dashd.pid ]]&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1';}|\
+	echo '*/10 * * * * { test -f ~/.dashcore/dashd.pid&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1';}|\
 	crontab -&&\
 	echo "Successfully installed cron job."
 EOF
