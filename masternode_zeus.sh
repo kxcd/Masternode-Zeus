@@ -1,7 +1,6 @@
 #!/bin/bash
 #set -x
 
-# Licence: GPLv2
 # The author of the software is the owner of the Dash Address: XnpT2YQaYpyh7F9twM6EtDMn1TCDCEEgNX
 
 # shellcheck disable=SC1117,SC2181
@@ -541,7 +540,7 @@ function createDashConf(){
 	msg="Next you need your bls private that you got from the 'bls generate' command\\n"
 	msg+="in the core walletor from DMT.\\n"
 	msg+="Note: This is NOT your collateral private key !\\n"
-	msg="Please enter your bls private (secret) key, if you don't have it ready,\\n"
+	msg+="Please enter your bls private (secret) key, if you don't have it ready,\\n"
 	msg+="just type in 'default' and edit your $DASH_CONF file later."
 	echo -e "$msg"
 	option='n'
@@ -1350,7 +1349,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.1.2 20210625"
+VERSION="v1.1.3 20220207"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
