@@ -686,18 +686,29 @@ installSentinel(){
 EOF
 }
 
-installCrontab(){
-	echo "Configuring sentinel in crontab, a backup has been taken of the existing crontab..."
+installDashCrontab(){
+	echo "Configuring sentinel in dash's crontab..."
 
-	sudo -i -u dash bash << EOF
-	date_time=\$(date +"%Y%m%d%H%M")
-	crontab -l>crontab-backup-\${date_time}
-	{ sed '/venv\/bin\/python.*bin\/sentinel.py/d' crontab-backup-\${date_time};\
-	echo '*/10 * * * * { test -f ~/.dashcore/dashd.pid&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1';}|\
-	crontab -&&\
-	echo "Successfully installed cron job."
-EOF
+	dash_crontab=$(sudo crontab -u dash -l)
+	grep -q "venv/bin/python bin/sentinel.py" <<< "$dash_crontab" ||\
+	dash_crontab+=$(echo -e "\n*/10 * * * * { test -f ~/.dashcore/dashd.pid&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1")
+	sudo crontab -u dash - <<< "$dash_crontab"&&\
+	echo "Successfully installed dash cron."||\
+	echo "Failed to install dash cron."
 }
+
+
+installRootCrontab(){
+	echo "Configuring root's crontab..."
+
+	root_crontab=$(sudo crontab -u root -l)
+	grep -q "weekly systemctl restart dashd" <<< "$root_crontab" ||\
+	root_crontab+=$(echo -e "\n@weekly systemctl restart dashd")
+	sudo crontab -u root - <<< "$root_crontab"&&\
+	echo "Successfully installed root cron."||\
+	echo "Failed to install root cron."
+}
+
 
 
 installMasternode(){
@@ -737,7 +748,8 @@ installMasternode(){
 	# The below also starts the dashd daemon.
 	createDashdService
 	createTopRC
-	installCrontab
+	installDashCrontab
+	installRootCrontab
 	installSentinel
 
 	read -r -s -n1 -p "Installation has completed successfully, press any key to continue. "
