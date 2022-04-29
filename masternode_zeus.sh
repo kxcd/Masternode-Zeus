@@ -319,7 +319,7 @@ uninstallJunkPackages(){
 	# Remove polkit because CVE was discovered in it and it seems to be pretty much useless.
 	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
 	echo "Uninstalling unnecessary programs..."
-	packages="screen tmux rsync usbutils pastebinit netcat netcat-openbsd libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb ntfs-3g snapd libmysqlclient21 g++-10 gcc-10 policykit-1 libpolkit-gobject-1-0"
+	packages="screen tmux rsync usbutils pastebinit netcat netcat-openbsd libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb ntfs-3g snapd libmysqlclient21 g++-10 gcc-10 policykit-1 libpolkit-gobject-1-0 popularity-contest"
 	for package in $packages
 	do
 		echo "*** Removing $package ***"
@@ -1361,7 +1361,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.1.3 20220207"
+VERSION="v1.1.5 20220429"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
