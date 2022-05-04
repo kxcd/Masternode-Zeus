@@ -413,16 +413,34 @@ configureTOR(){
 	sudo systemctl restart tor
 }
 
+# Re-runnable.
+increaseNoFileParam(){
+	echo "Checking open file limits..."
+	nofile=$(sudo grep -v ^# /etc/security/limits.conf|grep dash|grep -o "nofile.*"|tail -1|awk '{print $2}')
+	[[ -z $nofile ]] && nofile=0
+	if ((nofile!=4096));then
+		echo "Adjusting nofile limit in limits.conf"
+		sudo sed -i 's/\(dash.*nofile.*\)/#\1/g' /etc/security/limits.conf
+		echo "dash - nofile 4096"|sudo tee -a /etc/security/limits.conf
+	fi
+	if ! sudo grep -v ^# /etc/systemd/system.conf|grep -q DefaultLimitNOFILE=4096;then
+		echo "Adjusting nofile limit in system.conf"
+		sudo sed -i 's/\(^DefaultLimitNOFILE=.*\)/#\1/g' /etc/systemd/system.conf
+		echo "DefaultLimitNOFILE=4096:524288"|sudo tee -a /etc/systemd/system.conf
+	fi
+}
+
+
 # Returns:-
 # 0 if the change was made
-# 1 is no change was nessecary.
-function addSysCtl(){
+# 1 is no change was necessary.
+addSysCtl(){
 	sudo grep -q "^vm\.overcommit_memory" /etc/sysctl.conf\
 	&& return 1\
 	|| { echo "Adjusting kernel parameter in /etc/sysctl.conf to optimise RAM usage.";sudo bash -c "echo \"vm.overcommit_memory=1\">>/etc/sysctl.conf";}
 }
 
-function rebootSystem(){
+rebootSystem(){
 	msg="A reboot is required at this time to allow the changes to take effect\\n"
 	msg+="and to verify the system is still working correctly.\\n"
 	echo -e "$msg"
@@ -722,6 +740,7 @@ installMasternode(){
 	enableFireWall
 	configureSwap
 	configureTOR
+	increaseNoFileParam
 	addSysCtl && rebootSystem
 
 	sudo -u dash whoami >/dev/null 2>&1
@@ -1361,7 +1380,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.1.5 20220429"
+VERSION="v1.2.0 20220504"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
