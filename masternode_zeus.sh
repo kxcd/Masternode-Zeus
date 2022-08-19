@@ -140,7 +140,7 @@ busyLoop24bit(){
 # 1 for root user
 # 2 for non-privileged user with no sudo to root
 
-function idCheck(){
+idCheck(){
 	(( $(id -u) == 0 )) && return 1
 	msg="$ZEUS is now checking if you have sudo access to the root account\\n"
 	msg+="from this user $(whoami). You may be prompted for your password now.\\n"
@@ -159,7 +159,7 @@ function idCheck(){
 # Returns 1 for Raspbian.
 # Returns 2 for Fedora - Maybe be a supported OS in a later version
 # Returns 9 for all other OSs.
-function osCheck(){
+osCheck(){
 	if grep ^NAME /etc/os-release|grep -qi "Ubuntu\|Debian"
 	then
 		echo "OS Check passed, operating system is Debian based."
@@ -180,7 +180,7 @@ function osCheck(){
 
 # Will print a random string that can be used for password, if a numerical parameter is given,
 # then it will be used as the length of the string.
-function getRandomString(){
+getRandomString(){
 	length=${1:-32}
 	< /dev/urandom tr -dc A-Za-z0-9 | head -c"${length}";echo
 }
@@ -296,7 +296,7 @@ createDashUser(){
 
 
 
-function preventRootSSHLogins(){
+preventRootSSHLogins(){
 	grep ^PermitRootLogin /etc/ssh/sshd_config |tail -1|grep -q "PermitRootLogin no"\
 	&& { echo "Login as root via ssh is already disabled, continuing...";return 0;}
 	msg="**** Disabling root logins from ssh connections. ****\\n\\n"
@@ -336,7 +336,7 @@ uninstallJunkPackages(){
 	sudo apt-get clean
 }
 
-function updateSystem(){
+updateSystem(){
 	msg="Updating your system using apt update/upgrade.\\n"
 	msg+="Answer any prompts as appropriate...\\n"
 	echo -e "$msg"
@@ -356,7 +356,7 @@ function updateSystem(){
 }
 
 
-function enableFireWall(){
+enableFireWall(){
 	echo "Checking for a firewall..."
 	firewall=$(sudo ufw status)
 	grep -q ^22.tcp\ *[LA][IL][ML] <<<"$firewall" &&\
@@ -376,7 +376,7 @@ function enableFireWall(){
 	fi
 }
 
-function configureSwap(){
+configureSwap(){
 	echo "Checking your available swap space..."
 	if (( $(free -m|awk '/Swap/ {print $2}') < 2048 ))
 	then
@@ -503,7 +503,7 @@ downloadInstallDash(){
 
 
 # Re-runnable, it will only make the change once.
-function configureManPages(){
+configureManPages(){
 	echo "Adding Dash man pages to the MANPATH..."
 	sudo bash -c "grep -q \"^MANPATH_MAP.*/opt/dash/bin.*/opt/dash/share/man\" /etc/manpath.config||\
 					echo -e \"MANPATH_MAP\t/opt/dash/bin\t\t/opt/dash/share/man\">>/etc/manpath.config"
@@ -511,7 +511,7 @@ function configureManPages(){
 
 # Re-runnable, it will only make the change once.
 # This is specific to Debian based OSs only.
-function configurePATH(){
+configurePATH(){
 	echo "Adding Dash binaries to the PATH of the dash user..."
 	osCheck >/dev/null 2>&1
 	if (( $? <= 1 ));then
@@ -523,7 +523,7 @@ function configurePATH(){
 }
 
 
-function createDashConf(){
+createDashConf(){
 	# Configure a bare bones dash.conf file.
 	DASH_CONF="/home/dash/.dashcore/dash.conf"
 	if sudo test -f "$DASH_CONF";then
@@ -592,7 +592,7 @@ torcontrol=127.0.0.1:9051
 EOF"
 }
 
-function editDashConf(){
+editDashConf(){
 	msg="Once you are done editing this file exit with CTRL + X and answer Y to save,\\n"
 	msg+="if you're using vi, press ESC, then type in :wq to write and quit."
 	echo -e "$msg"
@@ -617,7 +617,7 @@ function editDashConf(){
 # Next we wish to register the `dashd` deamon as a system process so that is starts
 # automatically when the VPS boots and shutdown automatically when the VPS shutsdown,
 # it will also restart the process if it should crash for some reason.
-function createDashdService(){
+createDashdService(){
 	[[ -f /etc/systemd/system/dashd.service ]] &&\
 	{ echo "Systemd dashd unit file already exists, skipping...";return 1;}
 	# Gotta escape the " with \ in the here document.
@@ -691,11 +691,35 @@ dkWWJFw+UXkTuAaHs4xxxwMAAA=="|base64 -d|zcat >~/.toprc
 
 installSentinel(){
 	echo "Installing sentinel, a backup has been made of any previous version..."
+
+	# Create a patch file for sentinel to avoid the nag about RPC env vars.
+	cat > /tmp/sentinel.patch <<"EOF"
+--- sentinel-orig/lib/init.py	2022-08-19 11:27:40.593795243 +0000
++++ sentinel/lib/init.py	2022-08-19 11:28:15.321761009 +0000
+@@ -104,9 +104,10 @@
+         print("DashCore must be installed and configured, including JSONRPC access in dash.conf")
+         sys.exit(1)
+ 
+-    # deprecation warning
+-    if not has_required_env_vars() and has_dash_conf():
+-        print("deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future.")
++# Deprecate this deprecation warning.
++#    # deprecation warning
++#    if not has_required_env_vars() and has_dash_conf():
++#        print("deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future.")
+ 
+ 
+ main()
+EOF
+
+	chmod 664 /tmp/sentinel.patch
+
 	# The below will install and configure sentinel.
 	sudo -i -u dash bash <<EOF
 	[[ -d sentinel ]] && { sentinel_old="sentinel-\$(date +"%Y%m%d%H%M")";echo "\$sentinel_old";mv sentinel "\$sentinel_old"; }
 	git clone https://github.com/dashpay/sentinel &&\
 	cd ~/sentinel &&\
+	patch -Np1 -i /tmp/sentinel.patch;\
 	virtualenv -p \$(which python3) venv &&\
 	venv/bin/pip install -r requirements.txt &&\
 	venv/bin/py.test test &&\
@@ -1380,7 +1404,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.2.0 20220504"
+VERSION="v1.2.1 20220819"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
