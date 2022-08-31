@@ -27,7 +27,7 @@ for f in $files;do sudo mv -v $f /home/dash-common/.dashcore/blocks/;done
 sudo chmod -v -R g+wrx /home/dash-common/.dashcore/blocks/
 sudo chown -vR dash-common:dash-common /home/dash-common/.dashcore/blocks/
 
-for f in $files;do sudo ln -vs "../../../dash-common/.dashcore/blocks/$(basename $f)" "/home/$dash1/.dashcore/blocks/$(basename $f)";done
+for f in $files;do sudo ln -vs "../../../dash-common/.dashcore/blocks/$(basename $f)" "$f";done
 sudo chown -Rv $dash1:$dash1 /home/$dash1/.dashcore/blocks/
 
 for i in `seq 2 $num_nodes`;do
