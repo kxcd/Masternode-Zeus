@@ -644,7 +644,7 @@ TimeoutStartSec=10m
 ExecStop=/opt/dash/bin/dash-cli stop
 
 # Time that systemd gives a process to stop before shooting it in the head
-TimeoutStopSec=120
+TimeoutStopSec=300
 
 Restart=on-failure
 RestartSec=120
@@ -676,15 +676,15 @@ createTopRC(){
 	# We wont overwrite your .toprc if you already have one.
 	[[ -f ~/.toprc ]] && return 1
 	echo "Configuring ~/.toprc"
-	echo "H4sICDFuhF8CAy50b3ByYwCt01tv0zAUAODn+lf4ibUsjCZOQgfNNtaqu7COyzYG4xK8xEnN4iay
-EzX8INjEE9KGqrUUhmj/1xxU5O6xEy/WOXJ8fD6dOI2TBQEbcTegIWzRiMDyDu1mOUx47BEhiIA9
-mnbk0vXjnqiALf8h1WA79omLo1R43KlOU8ppnghH12CTRPiTm1JGHLQktxsZl+edKmiSoBRQEvnC
-y7jz+ez84vvwx+hq3B9cTu4sVO4uaveW7ld1w66trD5eb7Q2Nre2n+y0d58+e/5ib//g5eGr10dv
-3r57737Ax55PgrBDP4KSrB1EOJRX28iwDA2KmKey39zRaxpkOE+xOBFFnyHHScf1kmwmY4TJDJRE
-xpgX8aJ/JkIxDTsE+0WINFhUKUIDbMfHs4wvl/1B+fxiPByt1U8nSmHdlrGMaqY5w6jOr7CVwlaK
-B0phgzZhs4rBsD76+evqd3t9908TmX05kPINy/LUcVuFoc/PsBTDUgxTMSxwIPiNYZyeff0mBzKe
-VP72rhvIlM0/qjsrq2v/YxhofgVSCqQUhlIg0KI58d0e9YlIi0J78qjLhIcjUvyG+/LDf6ncPSI8
-dkWWJFw+UXkTuAaHs4xxxwMAAA=="|base64 -d|zcat >~/.toprc
+	echo "H4sICIxNGGMAAy50b3ByYwC11Elv00AUAOBz/Ct8ogmYYntsk0LcliYKdElZ2rKUxTj22JnW4zEz
+duPyf6AVJ6QWRU0IFJH8L8ZVpHEPXFC4jN7TLO99erJTkiwwuUniAIVyG0VQrm6hOMvlhBIPMgaZ
+3Edpjy+xT/qsJq379w4UuUN86LhRyjxqq7MUUZQnzNYUuQUj99hJEYY2WOTbzYzy+7YqtWBQCRCM
+fOZl1P50enb+bfR9fDkZDC+mNxZqN28ptxfvqJpu1ZdXHqw12w8frW9sbnW2Hz95+mxnd+/5i5ev
+9l+/efvOee92PR8GYQ8dHEY4JskHytLsqJ8ff5QqvFYQuSFvxQK6qSsyIzTl/ee2Vldk7Oapyw5Z
+0XdI3aTneElWyjDEV5lPsm4EnSwpRB7BXRTD2VGpwjKMvYgWW5iFbBb2oOsXIVDkokQR6tIG6ZbN
+ny8Gw+rZ+WQ0Xm2cTAXZnJd5CdQNo2RW/4Ws/p1sCbIlyHcF2ZI6EJfJw1Fj/OPn5a/O2vbvFjAG
+fNTVa/ClGXpeZF2bs9kUZlOYDWE2pT1Gr4355PTLVz7qybR2BdV0YHDp/Ya9vLL6P8YM5kwGggwE
+WRdkILVRDn2nj3zI0uKpHX7VwcxzI1h8Dbv8YCndh5Q4LEsSyn8rvJL0B+aNueJ7BAAA"|base64 -d|zcat >~/.toprc
 	# Test top, because this toprc may not work with different versions of top
 	top -v >/dev/null 2>&1|| rm -f ~/.toprc
 }
@@ -1404,7 +1404,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.2.1 20220819"
+VERSION="v1.2.2 20220907"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
