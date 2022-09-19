@@ -476,11 +476,16 @@ downloadInstallDash(){
 	download_path=$(grep "/dashcore.*$arch.*tar.gz\"" latest |awk -F '"' '{print $2}')
 	filename=$(basename "$download_path")
 	wget -q -O "$filename" https://github.com"$download_path" ||\
-	{ echo "Download of $filename has failed! Aborting..."; return 2;}
+	{ echo "Download of $filename has failed! Will try another way..."; retry_download="Y";}
 	echo "Download of $filename completed successfully!"
 	wget -q -O SHA256SUMS.asc https://github.com/dashpay/dash/releases/latest/download/SHA256SUMS.asc ||\
 	{ echo "Download of SHA256SUMS.asc has failed!  Aborting..."; return 3;}
 	echo "Download of SHA256SUMS.asc completed successfully!"
+	if [[ -n $retry_download ]];then
+		awk_string="awk '/dashcore.*$mach.*.tar.gz/ {print \$2}' SHA256SUMS.asc"
+		filename=$(eval "$awk_string")
+		wget -q -O "$filename" https://github.com/dashpay/dash/releases/latest/download/"$filename"
+	fi
 	file_hash=$(sha256sum "$filename"|awk '{print $1}')
 	grep -i "$file_hash" SHA256SUMS.asc|grep "$filename" ||\
 	{ echo "The sha256 hash does not match to the expected!  Cannot continue, aborting..."; return 4;}
@@ -1404,7 +1409,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.2.2 20220907"
+VERSION="v1.3.0 20220920"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
