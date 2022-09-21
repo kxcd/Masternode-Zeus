@@ -475,9 +475,12 @@ downloadInstallDash(){
 	wget -q -O latest https://github.com/dashpay/dash/releases/latest
 	download_path=$(grep "/dashcore.*$arch.*tar.gz\"" latest |awk -F '"' '{print $2}')
 	filename=$(basename "$download_path")
-	wget -q -O "$filename" https://github.com"$download_path" ||\
-	{ echo "Download of $filename has failed! Will try another way..."; retry_download="Y";}
-	echo "Download of $filename completed successfully!"
+	if ! wget -q -O "$filename" https://github.com"$download_path";then
+		echo "Download of $filename has failed! Will try another way..."
+		retry_download="Y"
+	else
+		echo "Download of $filename completed successfully!"
+	fi
 	wget -q -O SHA256SUMS.asc https://github.com/dashpay/dash/releases/latest/download/SHA256SUMS.asc ||\
 	{ echo "Download of SHA256SUMS.asc has failed!  Aborting..."; return 3;}
 	echo "Download of SHA256SUMS.asc completed successfully!"
@@ -854,6 +857,13 @@ showStatus(){
 	&& port_9999="Error"
 	printGraduatedProgressBar 50 40
 
+	if [[ "$externalip" != "Error" ]];then
+		curl -s -d test --connect-timeout 2 ${externalip}:9999
+		(( $? == 52 ))&&local_port_9999="OPEN"||local_port_9999="CLOSED"
+	else
+		local_port_9999="????"
+	fi
+
 	dashd_version=$(sudo -i -u dash bash -c "dashd -version 2>/dev/null" 2>/dev/null)
 	(( $? != 0 )) && dashd_version="Not found!"\
 	||dashd_version=$(head -1 <<< "$dashd_version")
@@ -980,6 +990,7 @@ showStatus(){
 	printf "$bldgrn%17s : $txtred%s\n" "dashd version" "$dashd_version"
 	printf "$bldgrn%17s : $txtred%s\n" "IP address" "$externalip"
 	printf "$bldgrn%17s : $txtred%s\n" "Port (9999)" "$port_9999"
+	printf "$bldgrn%17s : $txtred%s\n" "Local Port (9999)" "$local_port_9999"
 
 	if (( num_dashd_procs == 0 ));then
 		printf "$bldgrn%17s : $txtred%s\n" "dashd running?" "No!"
@@ -999,7 +1010,7 @@ showStatus(){
 	printf "$bldgrn%17s : $txtred%s\n" "Sentinel version" "$sentinel_version"
 	printf "$bldgrn%17s : $txtred%s\n" "Next payment" "$next_payment"
 	echo -e "$txtrst"
-	linesOfStatsPrinted=32
+	linesOfStatsPrinted=33
 	if (( num_dashd_procs > 1));then
 		((linesOfStatsPrinted=linesOfStatsPrinted + num_dashd_procs -1))
 	fi
@@ -1409,7 +1420,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.0 20220920"
+VERSION="v1.3.2 20220921"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
