@@ -1,7 +1,7 @@
 #!/bin/bash
 #set -x
 
-# The author of the software is the owner of the Dash Address: XnpT2YQaYpyh7F9twM6EtDMn1TCDCEEgNX
+# The author of the software is the owner of the Dash Address: XjwSnc9f81ZVC2GAyKQip5N3Apv2zumRoc
 
 # shellcheck disable=SC1117,SC2181
 
@@ -910,6 +910,13 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
+		num_peers=$(sudo -i -u dash bash -c "dash-cli getpeerinfo 2>/dev/null|jq -r '.|length' 2>/dev/null" 2>/dev/null)
+	else
+		num_peers="dashd down"
+	fi
+
+
+	if (( num_dashd_procs > 0 ));then
 		masternode_status=$(sudo -i -u dash bash -c "dash-cli masternode status 2>/dev/null|jq -r '.status' 2>/dev/null" 2>/dev/null)
 		(( ${#masternode_status} == 0 )) && masternode_status=$(sudo -i -u dash bash -c "dash-cli masternode status 2>&1|tail -1" 2>/dev/null)
 	else
@@ -967,50 +974,51 @@ showStatus(){
 	printGraduatedProgressBar 50 100
 
 	# Now print it all out nicely formatted on screen.
-	msg="${bldblu}$(date)\\n"
+	msg="${bldcyn}$(date)\\n"
 	msg+="=====================================================\\n"
 	msg+="================== System info ======================\\n"
 	msg+="=====================================================\\n"
 	echo -e "$msg"
 
-	printf "$bldgrn%17s : $txtred%s\n" "CPU Load" "$cpu"
-	printf "$bldgrn%17s : $txtred%s\n" "Disk used / size" "$disk_used / $disk_size"
-	printf "$bldgrn%17s : $txtred%s\n" "Disk free" "$disk_free"
-	printf "$bldgrn%17s : $txtred%s\n" "RAM used / size" "$ram_used / $ram_size"
-	printf "$bldgrn%17s : $txtred%s\n" "RAM free" "$ram_free"
-	printf "$bldgrn%17s : $txtred%s\n" "Swap used / size" "$swap_used / $swap_size"
-	printf "$bldgrn%17s : $txtred%s\n" "Swap free" "$swap_free"
+	printf "$bldblu%17s : $txtgrn%s\n" "CPU Load" "$cpu"
+	printf "$bldblu%17s : $txtgrn%s\n" "Disk used / size" "$disk_used / $disk_size"
+	printf "$bldblu%17s : $txtgrn%s\n" "Disk free" "$disk_free"
+	printf "$bldblu%17s : $txtgrn%s\n" "RAM used / size" "$ram_used / $ram_size"
+	printf "$bldblu%17s : $txtgrn%s\n" "RAM free" "$ram_free"
+	printf "$bldblu%17s : $txtgrn%s\n" "Swap used / size" "$swap_used / $swap_size"
+	printf "$bldblu%17s : $txtgrn%s\n" "Swap free" "$swap_free"
 
 	msg="\\n"
-	msg+="$bldblu=====================================================\\n"
+	msg+="$bldcyn=====================================================\\n"
 	msg+="=================== dashd info ======================\n"
 	msg+="=====================================================\\n"
 	echo -e "$msg"
 
-	printf "$bldgrn%17s : $txtred%s\n" "dashd version" "$dashd_version"
-	printf "$bldgrn%17s : $txtred%s\n" "IP address" "$externalip"
-	printf "$bldgrn%17s : $txtred%s\n" "Port (9999)" "$port_9999"
-	printf "$bldgrn%17s : $txtred%s\n" "Local Port (9999)" "$local_port_9999"
+	printf "$bldblu%17s : $txtgrn%s\n" "dashd version" "$dashd_version"
+	printf "$bldblu%17s : $txtgrn%s\n" "IP address" "$externalip"
+	printf "$bldblu%17s : $txtgrn%s\n" "Port (9999)" "$port_9999"
+	printf "$bldblu%17s : $txtgrn%s\n" "Local Port (9999)" "$local_port_9999"
 
 	if (( num_dashd_procs == 0 ));then
-		printf "$bldgrn%17s : $txtred%s\n" "dashd running?" "No!"
+		printf "$bldblu%17s : $txtgrn%s\n" "dashd running?" "No!"
 	else
 		for ((i=0; i<${#dashd_pid[@]}; i++));do
-			printf "$bldgrn%17s : $txtred%s\n" "dashd pid / user" "${dashd_pid[$i]} / ${dashd_user[$i]}"
+			printf "$bldblu%17s : $txtgrn%s\n" "dashd pid / user" "${dashd_pid[$i]} / ${dashd_user[$i]}"
 		done
 	fi
 
-	printf "$bldgrn%17s : $txtred%s\n" "Block height" "$block_height"
-	printf "$bldgrn%17s : $txtred%s\n" "Blockchair height" "$blockchair_height"
-	printf "$bldgrn%17s : $txtred%s\n" "CryptoId height" "$cryptoid_height"
-	printf "$bldgrn%17s : $txtred%s\n" "Masternode status" "$masternode_status"
-	printf "$bldgrn%17s : $txtred%s\n" "PoSe score" "$pose_score"
-	printf "$bldgrn%17s : $txtred%s\n" "Masternode sync" "$mn_sync"
-	printf "$bldgrn%17s : $txtred%s\n" "Sentinel" "$sentinel"
-	printf "$bldgrn%17s : $txtred%s\n" "Sentinel version" "$sentinel_version"
-	printf "$bldgrn%17s : $txtred%s\n" "Next payment" "$next_payment"
+	printf "$bldblu%17s : $txtgrn%s\n" "Block height" "$block_height"
+	printf "$bldblu%17s : $txtgrn%s\n" "Blockchair height" "$blockchair_height"
+	printf "$bldblu%17s : $txtgrn%s\n" "CryptoId height" "$cryptoid_height"
+	printf "$bldblu%17s : $txtgrn%s\n" "Connected peers" "$num_peers"
+	printf "$bldblu%17s : $txtgrn%s\n" "Masternode status" "$masternode_status"
+	printf "$bldblu%17s : $txtgrn%s\n" "PoSe score" "$pose_score"
+	printf "$bldblu%17s : $txtgrn%s\n" "Masternode sync" "$mn_sync"
+	printf "$bldblu%17s : $txtgrn%s\n" "Sentinel" "$sentinel"
+	printf "$bldblu%17s : $txtgrn%s\n" "Sentinel version" "$sentinel_version"
+	printf "$bldblu%17s : $txtgrn%s\n" "Next payment" "$next_payment"
 	echo -e "$txtrst"
-	linesOfStatsPrinted=33
+	linesOfStatsPrinted=34
 	if (( num_dashd_procs > 1));then
 		((linesOfStatsPrinted=linesOfStatsPrinted + num_dashd_procs -1))
 	fi
@@ -1420,7 +1428,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.2 20220921"
+VERSION="v1.3.3 20220930"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
