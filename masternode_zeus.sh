@@ -290,7 +290,7 @@ createDashUser(){
 	fi
 	unset setpasswd
 	# Finally add the mno user to the dash group.
-	sudo usermod -aG sudo mno
+	sudo usermod -aG dash mno
 }
 
 
@@ -1428,7 +1428,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.3 20220930"
+VERSION="v1.3.4 20221014"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
