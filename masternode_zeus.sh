@@ -349,7 +349,7 @@ updateSystem(){
 	echo "Finished applying system updates."
 
 	echo " Install additional packages needed for masternode operation..."
-	sudo apt-get -y install ufw python3 virtualenv git curl wget tor unzip pv bc jq speedtest-cli catimg &&\
+	sudo apt-get -y install ufw python3 virtualenv git patch curl wget tor unzip pv bc jq speedtest-cli catimg &&\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
 	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
@@ -1428,7 +1428,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.4 20221014"
+VERSION="v1.3.5 20221023"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
