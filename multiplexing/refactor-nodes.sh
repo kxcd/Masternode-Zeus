@@ -14,7 +14,11 @@ dashx=dash0
 num_nodes=3
 
 # Shutdown all the nodes!  This is important otherwise the data will not be consistent!
-sudo systemctl stop dashd01 dashd02 dashd03
+for((i=1;i<=num_nodes;i++));do
+	echo "Shutting down $dashx$i..."
+	sudo systemctl stop dashd0$i
+done
+
 while pidof dashd;do sleep 1;done
 
 files=$(sudo find /home/$dash1/.dashcore/blocks -type f -name "blk*"|sort|head -$(($(sudo find /home/$dash1/.dashcore/blocks -type f -name "blk*"|wc -l)-1)))
@@ -38,9 +42,6 @@ for i in `seq 2 $num_nodes`;do
 	sudo bash -c "rm -fr /home/$dashx$i/.dashcore/{.lock,.walletlock,d*.log,*.dat,onion*key} /home/$dashx$i/.dashcore/backups/"
 	sudo cp -v /tmp/[do][an][si][ho]*[ok][ne][fy] /home/$dashx$i/.dashcore/
 	sudo chown -v -R $dashx$i:$dashx$i /home/$dashx$i/;}
+	sudo systemctl start dashd0$i
 done
-
-# Just reboot and all the nodes will come back on-line themselves.
-read -r -s -n1 -p "Press any key to reboot... "
-sudo reboot
-
+sudo systemctl start dashd01
