@@ -344,7 +344,7 @@ updateSystem(){
 	# Doing it like this because on a fresh system it is possible a background task is locking the package manager causing this to fail for some time.
 	until sudo apt-get update&&sudo apt-get upgrade;do echo "Trying again, please wait...";sleep 30;done
 
-	#uninstallJunkPackages
+	uninstallJunkPackages
 
 	echo "Finished applying system updates."
 
@@ -702,19 +702,23 @@ installSentinel(){
 
 	# Create a patch file for sentinel to avoid the nag about RPC env vars.
 	cat > /tmp/sentinel.patch <<"EOF"
---- sentinel-orig/lib/init.py	2022-08-19 11:27:40.593795243 +0000
-+++ sentinel/lib/init.py	2022-08-19 11:28:15.321761009 +0000
-@@ -104,9 +104,10 @@
-         print("DashCore must be installed and configured, including JSONRPC access in dash.conf")
+--- sentinel-orig/lib/init.py    2022-08-19 11:27:40.593795243 +0000
++++ sentinel/lib/init.py    2022-08-19 11:28:15.321761009 +0000
+@@ -108,11 +108,12 @@
+         )
          sys.exit(1)
  
 -    # deprecation warning
 -    if not has_required_env_vars() and has_dash_conf():
--        print("deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future.")
+-        print(
+-            "deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future."
+-        )
 +# Deprecate this deprecation warning.
-+#    # deprecation warning
-+#    if not has_required_env_vars() and has_dash_conf():
-+#        print("deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future.")
++#     # deprecation warning
++#     if not has_required_env_vars() and has_dash_conf():
++#         print(
++#             "deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future."
++#         )
  
  
  main()
@@ -1428,7 +1432,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.5 20221023"
+VERSION="v1.3.6 20230419"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
