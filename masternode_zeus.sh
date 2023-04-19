@@ -344,7 +344,7 @@ updateSystem(){
 	# Doing it like this because on a fresh system it is possible a background task is locking the package manager causing this to fail for some time.
 	until sudo apt-get update&&sudo apt-get upgrade;do echo "Trying again, please wait...";sleep 30;done
 
-	uninstallJunkPackages
+	#uninstallJunkPackages
 
 	echo "Finished applying system updates."
 
