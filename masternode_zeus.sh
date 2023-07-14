@@ -248,6 +248,10 @@ createMnoUser(){
 	echo
 }
 
+removeUnusedAccounts(){
+	echo "Removing unnecessary accounts..."
+	userdel -r ubuntu
+}
 
 createDashUser(){
 
@@ -770,6 +774,7 @@ installMasternode(){
 	echo "Installing the DASH Masternode."
 	# This section will run again after the first reboot, it should be fairly harmless and quick
 	# but in the future I might jump over this block if the dash user already exists on the system.
+	removeUnusedAccounts
 	createDashUser
 	preventRootSSHLogins
 	updateSystem
@@ -1432,7 +1437,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.6 20230419"
+VERSION="v1.3.7 20230715"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
