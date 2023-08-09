@@ -565,8 +565,9 @@ createDashConf(){
 	echo "Initialising a default dash.conf file for you...."
 	rpcuser=$(getRandomString 40)
 	rpcpassword=$(getRandomString 40)
-	ip=$(curl -s http://ipecho.net/plain)
-	(( $? != 0 )) && ip="XXX.XXX.XXX.XXX"
+	ip=$(curl -s https://icanhazip.com/)||ip=$(curl -s https://ipecho.net/plain)
+	(( $? !=0 || ${#ip} < 7 || ${#ip} > 15 ))&& ip="XXX.XXX.XXX.XXX"
+
 	msg="Next you need your bls private that you got from the 'bls generate' command\\n"
 	msg+="in the core walletor from DMT.\\n"
 	msg+="Note: This is NOT your collateral private key !\\n"
@@ -855,7 +856,7 @@ showStatus(){
 	swap_used=$(awk '/^Swap/ {print $3}'<<<"$ram")
 	swap_free=$(awk '/^Swap/ {print $4}'<<<"$ram")
 
-	externalip=$(curl -s http://ipecho.net/plain)
+	externalip=$(curl -s https://icanhazip.com/)||externalip=$(curl -s https://ipecho.net/plain)
 	(( $? !=0 || ${#externalip} < 7 || ${#externalip} > 15 ))\
 	&& externalip="Error"
 	printGraduatedProgressBar 50 25
@@ -1437,7 +1438,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.7 20230715"
+VERSION="v1.3.8 20230809"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
