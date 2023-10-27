@@ -353,7 +353,7 @@ updateSystem(){
 	echo "Finished applying system updates."
 
 	echo " Install additional packages needed for masternode operation..."
-	sudo apt-get -y install ufw python3 virtualenv git patch curl wget tor unzip pv bc jq speedtest-cli catimg &&\
+	sudo apt-get -y install ufw git patch curl wget tor unzip pv bc jq speedtest-cli catimg &&\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
 	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
@@ -702,60 +702,6 @@ WRdkILVRDn2nj3zI0uKpHX7VwcxzI1h8Dbv8YCndh5Q4LEsSyn8rvJL0B+aNueJ7BAAA"|base64 -d|
 	top -v >/dev/null 2>&1|| rm -f ~/.toprc
 }
 
-installSentinel(){
-	echo "Installing sentinel, a backup has been made of any previous version..."
-
-	# Create a patch file for sentinel to avoid the nag about RPC env vars.
-	cat > /tmp/sentinel.patch <<"EOF"
---- sentinel-orig/lib/init.py    2022-08-19 11:27:40.593795243 +0000
-+++ sentinel/lib/init.py    2022-08-19 11:28:15.321761009 +0000
-@@ -108,11 +108,12 @@
-         )
-         sys.exit(1)
- 
--    # deprecation warning
--    if not has_required_env_vars() and has_dash_conf():
--        print(
--            "deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future."
--        )
-+# Deprecate this deprecation warning.
-+#     # deprecation warning
-+#     if not has_required_env_vars() and has_dash_conf():
-+#         print(
-+#             "deprecation warning: JSONRPC credentials should now be set using environment variables. Using dash.conf will be deprecated in the near future."
-+#         )
- 
- 
- main()
-EOF
-
-	chmod 664 /tmp/sentinel.patch
-
-	# The below will install and configure sentinel.
-	sudo -i -u dash bash <<EOF
-	[[ -d sentinel ]] && { sentinel_old="sentinel-\$(date +"%Y%m%d%H%M")";echo "\$sentinel_old";mv sentinel "\$sentinel_old"; }
-	git clone https://github.com/dashpay/sentinel &&\
-	cd ~/sentinel &&\
-	patch -Np1 -i /tmp/sentinel.patch;\
-	virtualenv -p \$(which python3) venv &&\
-	venv/bin/pip install -r requirements.txt &&\
-	venv/bin/py.test test &&\
-	venv/bin/python bin/sentinel.py && echo "Sentinel installed successfully!" ||\
-	{ echo "Sentinel install failed, rolling back.";cd ; [[ -d "\$sentinel_old" ]] && rm -fr sentinel/ ;mv "\$sentinel_old" sentinel; }
-EOF
-}
-
-installDashCrontab(){
-	echo "Configuring sentinel in dash's crontab..."
-
-	dash_crontab=$(sudo crontab -u dash -l)
-	grep -q "venv/bin/python bin/sentinel.py" <<< "$dash_crontab" ||\
-	dash_crontab+=$(echo -e "\n*/10 * * * * { test -f ~/.dashcore/dashd.pid&&cd ~/sentinel && venv/bin/python bin/sentinel.py;} >> ~/sentinel/sentinel-cron.log 2>&1")
-	sudo crontab -u dash - <<< "$dash_crontab"&&\
-	echo "Successfully installed dash cron."||\
-	echo "Failed to install dash cron."
-}
-
 
 installRootCrontab(){
 	echo "Configuring root's crontab..."
@@ -809,9 +755,7 @@ installMasternode(){
 	# The below also starts the dashd daemon.
 	createDashdService
 	createTopRC
-	installDashCrontab
 	installRootCrontab
-	installSentinel
 
 	read -r -s -n1 -p "Installation has completed successfully, press any key to continue. "
 	echo
@@ -976,11 +920,7 @@ showStatus(){
 	fi
 
 
-	sentinel=$(sudo -i -u dash bash -c "cd ~/sentinel 2>/dev/null&& venv/bin/python bin/sentinel.py" 2>/dev/null)
-	(( $? == 0 && ${#sentinel} == 0 ))\
-	&& sentinel="OK"\
-	|| sentinel="Failed"
-	sentinel_version=$(sudo -i -u dash bash -c "cd ~/sentinel/ 2>/dev/null&&venv/bin/python bin/sentinel.py --version" 2>/dev/null)
+
 	printGraduatedProgressBar 50 100
 
 	# Now print it all out nicely formatted on screen.
@@ -1024,11 +964,9 @@ showStatus(){
 	printf "$bldblu%17s : $txtgrn%s\n" "Masternode status" "$masternode_status"
 	printf "$bldblu%17s : $txtgrn%s\n" "PoSe score" "$pose_score"
 	printf "$bldblu%17s : $txtgrn%s\n" "Masternode sync" "$mn_sync"
-	printf "$bldblu%17s : $txtgrn%s\n" "Sentinel" "$sentinel"
-	printf "$bldblu%17s : $txtgrn%s\n" "Sentinel version" "$sentinel_version"
 	printf "$bldblu%17s : $txtgrn%s\n" "Next payment" "$next_payment"
 	echo -e "$txtrst"
-	linesOfStatsPrinted=34
+	linesOfStatsPrinted=32
 	if (( num_dashd_procs > 1));then
 		((linesOfStatsPrinted=linesOfStatsPrinted + num_dashd_procs -1))
 	fi
@@ -1230,10 +1168,9 @@ manageMasternodeMenu(){
 	msg+="=====================\n"
 	msg+="\n\nMake a selection from the below options.\n"
 	msg+="1. (Re)install dash binaries, use this for updates.\n"
-	msg+="2. (Re)install sentinel and update it.\n"
-	msg+="3. Review and edit your dash.conf file.\n"
-	msg+="4. Reindex dashd.\n"
-	msg+="5. View debug.log.\n"
+	msg+="2. Review and edit your dash.conf file.\n"
+	msg+="3. Reindex dashd.\n"
+	msg+="4. View debug.log.\n"
 	msg+="9. Return to Main Menu.\n"
 	echo -e "$msg"
 	echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
@@ -1266,27 +1203,6 @@ manageMasternodeMenu(){
 			return 0
 			;;
 		2)
-			msg="This will update and replace your sentinel with a new one from Github.\n"
-			msg+="Use this option if your sentinel is not working right, or if you need to\n"
-			msg+="upgrade it.\n\n"
-			msg+="Press Y to continue or another other key to return to the main menu [y [${bldwht}N${txtrst}]] "
-			echo -en "$msg"
-			read -r -n1 option
-			echo -e "\n$option">>"$LOGFILE"
-			option=${option:-N}
-			[[ $option = [yY] ]] || return 0
-			echo
-			installSentinel
-			if (( $? == 0 ));then
-				echo "Installation has been successful."
-			else
-				echo "Installation of sentinel has been unsuccessful, please investigate or seek support!"
-			fi
-			read -r -s -n1 -p "Press any key to continue. "
-			echo
-			return 0
-			;;
-		3)
 			echo "******************** $DASH_CONF ********************"
 			sudo cat "$DASH_CONF"
 			echo "******************** $DASH_CONF ********************"
@@ -1305,7 +1221,7 @@ manageMasternodeMenu(){
 			echo
 			return 0
 			;;
-		4)
+		3)
 			msg="As a last resort if your node is stuck, you can choose to reindex it.\n"
 			msg+="This process will take about 3 hours depending on your hardware.\n"
 			msg+="You can monitor the progress from the status page...\n"
@@ -1322,7 +1238,7 @@ manageMasternodeMenu(){
 			echo
 			return 0
 			;;
-		5)
+		4)
 			msg="This option will open the debug.log file in less from when the node\n"
 			msg+="was last started. To navigate the log file use the below hints.\n"
 			msg+="G - Pressing uppercase G will take you to the end of the log file to see the most recent entries.\n"
@@ -1438,7 +1354,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.8 20230809"
+VERSION="v1.3.9 20231027"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
