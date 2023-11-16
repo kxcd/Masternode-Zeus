@@ -489,7 +489,7 @@ downloadInstallDash(){
 	{ echo "Download of SHA256SUMS.asc has failed!  Aborting..."; return 3;}
 	echo "Download of SHA256SUMS.asc completed successfully!"
 	if [[ -n $retry_download ]];then
-		awk_string="awk '/dashcore.*$mach.*.tar.gz/ {print \$2}' SHA256SUMS.asc"
+		awk_string="awk '/dashcore.*$arch.*.tar.gz/ {print \$2}' SHA256SUMS.asc"
 		filename=$(eval "$awk_string")
 		wget -q -O "$filename" https://github.com/dashpay/dash/releases/latest/download/"$filename"
 	fi
@@ -1354,7 +1354,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.9 20231027"
+VERSION="v1.3.10 20231116"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
