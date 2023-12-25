@@ -45,6 +45,7 @@ txtrst='\e[0m'    # Text Reset
 
 # Takes one param, the number of chars to print.
 busyLoop(){
+	local i
 	(( $# < 1 )) && return 1
 	[[ "$1" =~ ^[0-9]+$ ]] || return 2
 	i=$1
@@ -70,13 +71,18 @@ printGraduatedProgressBar(){
 	[[ "$2" =~ ^[0-9]+$ ]] || return 4
 	(( $2 < 0 || $2 > 100 )) && return 5
 
+	local spaces
+	# progress must remain as a global variable.
+	#local progress
+	local step
+
 	# Create the progress bar area and return the cursor to the left (D)
 	# Up (A), Down (B), Right (C), Left (D)
 	if (( $2 == 0 ));then
 		spaces=
 		progress=0
 		for ((i=0; i<$1; i++));do spaces+=" ";done
-		[[ ! -z "$3" ]] && text="$3 "
+		[[ -n "$3" ]] && text="$3 "
 		echo -en "\\e[1;37m${text}[$spaces]\\e[0m\\e[$(($1+1))D"
 	fi
 	step=$((100 / $1))
@@ -100,6 +106,15 @@ printGraduatedProgressBar(){
 busyLoop24bit(){
 	(( $# < 1 )) && return 1
 	[[ $1 =~ ^[0-9]+$ ]] || return 2
+	local i
+	local speed
+	local intensity
+	local r
+	local g
+	local b
+	local r_delta
+	local g_delta
+	local b_delta
 	i=$1
 	[[ -z $2 ]] && speed=20||speed=$2
 	[[ -z $3 ]] && intensity=42||intensity=$3
@@ -108,10 +123,6 @@ busyLoop24bit(){
 	(( speed < 1 || speed > 300 )) && return 5
 	(( intensity < 1 || intensity > 900 )) && return 6
 
-	# Set the initial colour
-	#r=$(( RANDOM % 256 ))
-	#g=$(( RANDOM % 256 ))
-	#b=$(( RANDOM % 256 ))
 	r=0;g=0;b=0
 	while ((i--)) ;do
 		r_delta=$(( speed - RANDOM % intensity ))
@@ -147,6 +158,7 @@ idCheck(){
 	msg+="Enter your user's password when prompted NO CHANGES will be made at this time,\\n"
 	msg+="this is just a check.\\n"
 	echo -e "$msg"
+	local sid
 	sid=$(sudo id -u)
 	(( $? != 0 )) && return 2
 	(( sid == 0 )) && return 0
@@ -160,16 +172,13 @@ idCheck(){
 # Returns 2 for Fedora - Maybe be a supported OS in a later version
 # Returns 9 for all other OSs.
 osCheck(){
-	if grep ^NAME /etc/os-release|grep -qi "Ubuntu\|Debian"
-	then
+	if grep ^NAME /etc/os-release|grep -qi "Ubuntu\|Debian";then
 		echo "OS Check passed, operating system is Debian based."
 		return 0
-	elif grep ^NAME /etc/os-release|grep -qi Raspbian
-	then
+	elif grep ^NAME /etc/os-release|grep -qi Raspbian;then
 		echo "OS Check passed, operating system is Raspbian."
 		return 1
-	elif grep ^NAME /etc/os-release|grep -qi Fedora
-	then
+	elif grep ^NAME /etc/os-release|grep -qi Fedora;then
 		echo "Fedora is not a currently supported OS, please install and manage your masternode manually."
 		return 2
 	else
@@ -181,11 +190,14 @@ osCheck(){
 # Will print a random string that can be used for password, if a numerical parameter is given,
 # then it will be used as the length of the string.
 getRandomString(){
+	local length
 	length=${1:-32}
 	< /dev/urandom tr -dc A-Za-z0-9 | head -c"${length}";echo
 }
 
 createMnoUser(){
+
+	local option
 	msg="Creating the mno user.\\n"
 	msg+="If you have not yet reset your root password, it is recommended to do so now.\\n"
 	msg+="Would you like to reset the password of the root user? [[${bldwht}Y${txtrst}] n] "
@@ -193,12 +205,12 @@ createMnoUser(){
 	read -r -n1 option
 	echo -e "\\n$option">>"$LOGFILE"
 	echo
+	local setpassword
 	option=${option:-Y}
 	[[ $option = [yY] ]] && while ! passwd ;do : ;done
 	echo
 
-	if grep -q ^mno /etc/passwd
-	then
+	if grep -q ^mno /etc/passwd;then
 		echo "Found existing mno user on this system."
 		grep mno /etc/group|grep -q sudo || { echo "Adding mno to the sudo group";usermod -aG sudo mno; }
 		echo -en "Would you like to reset the password of the mno user? [y [${bldwht}N${txtrst}]] "
@@ -234,8 +246,6 @@ createMnoUser(){
 		read -r -s -n1 -p "Press any key to continue. "
 		echo
 	fi
-	unset setpasswd
-
 
 	[[ ! -d /home/mno/bin ]] && mkdir /home/mno/bin
 	cp "$ZEUS" /home/mno/bin&&chown -R mno:mno /home/mno/bin
@@ -250,13 +260,17 @@ createMnoUser(){
 
 removeUnusedAccounts(){
 	echo "Removing unnecessary accounts..."
-	userdel -r ubuntu
+	{
+		sudo userdel -r ubuntu
+		sudo groupdel ubuntu
+	} >/dev/null 2>&1
 }
 
 createDashUser(){
 
-	if grep -q ^dash /etc/passwd
-	then
+	local option
+	local setpasswd
+	if grep -q ^dash /etc/passwd;then
 		echo "Found existing dash user on this system."
 		sudo usermod -aG dash dash
 		echo -en "Would you like to reset the password of the dash user? [[${bldwht}Y${txtrst}] n] "
@@ -292,7 +306,7 @@ createDashUser(){
 		read -r -s -n1 -p "Press any key to continue. "
 		echo
 	fi
-	unset setpasswd
+
 	# Finally add the mno user to the dash group.
 	sudo usermod -aG dash mno
 }
@@ -323,7 +337,10 @@ uninstallJunkPackages(){
 	# Remove polkit because CVE was discovered in it and it seems to be pretty much useless.
 	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
 	echo "Uninstalling unnecessary programs..."
-	packages="screen tmux rsync usbutils pastebinit netcat netcat-openbsd libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb ntfs-3g snapd libmysqlclient21 g++-10 gcc-10 policykit-1 libpolkit-gobject-1-0 popularity-contest"
+	local packages
+	local package
+	local service
+	packages="screen tmux rsync usbutils pastebinit netcat netcat-openbsd libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb ntfs-3g snapd libmysqlclient21 g++-10 gcc-10 policykit-1 libpolkit-gobject-1-0 popularity-contest apache2-utils"
 	for package in $packages
 	do
 		echo "*** Removing $package ***"
@@ -353,7 +370,7 @@ updateSystem(){
 	echo "Finished applying system updates."
 
 	echo " Install additional packages needed for masternode operation..."
-	sudo apt-get -y install ufw git patch curl wget tor unzip pv bc jq speedtest-cli catimg &&\
+	sudo apt-get -y install ufw git patch curl wget tor unzip pv bc jq speedtest-cli net-tools catimg &&\
 	sudo apt-get autoremove --purge &&\
 	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
 	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
@@ -362,6 +379,7 @@ updateSystem(){
 
 enableFireWall(){
 	echo "Checking for a firewall..."
+	local firewall
 	firewall=$(sudo ufw status)
 	grep -q ^22.tcp\ *[LA][IL][ML] <<<"$firewall" &&\
 	grep -q ^9999.tcp\ *[LA][IL][ML] <<<"$firewall"
@@ -370,7 +388,6 @@ enableFireWall(){
 		sudo ufw allow ssh/tcp &&\
 		sudo ufw limit ssh/tcp &&\
 		sudo ufw allow 9999/tcp &&\
-		sudo ufw allow 9050/tcp &&\
 		sudo ufw logging on &&\
 		sudo ufw enable &&\
 		echo "Firewall configured successfully!" ||\
@@ -382,8 +399,8 @@ enableFireWall(){
 
 configureSwap(){
 	echo "Checking your available swap space..."
-	if (( $(free -m|awk '/Swap/ {print $2}') < 2048 ))
-	then
+	local swapfile
+	if (( $(free -m|awk '/Swap/ {print $2}') < 3096 ));then
 		echo "Adding 3GB swap..."
 		swapfile="/var/swapfile"
 		[[ -f /var/swapfile ]] && swapfile="$swapfile.$RANDOM"
@@ -402,12 +419,14 @@ configureSwap(){
 # Re-runable function to configure TOR for dash.
 configureTOR(){
 	echo "Configuring TOR..."
+	local x
 	x=$(grep -c ^Co[no][tk][ri] /etc/tor/torrc)
 	if((x != 3));then
 		sudo bash -c "echo -e 'ControlPort 9051\nCookieAuthentication 1\nCookieAuthFileGroupReadable 1' >> /etc/tor/torrc"
 	fi
 	sudo systemctl enable --now tor
 	sleep 1
+	local group
 	group=$(procs=$(ps -A -O pid,ruser:12,rgroup:12,comm);grep $(pidof tor)<<<"$procs"|awk '{print $3}')
 	if((PIPESTATUS == 0));then
 		sudo usermod -aG "$group" dash
@@ -420,6 +439,7 @@ configureTOR(){
 # Re-runnable.
 increaseNoFileParam(){
 	echo "Checking open file limits..."
+	local nofile
 	nofile=$(sudo grep -v ^# /etc/security/limits.conf|grep dash|grep -o "nofile.*"|tail -1|awk '{print $2}')
 	[[ -z $nofile ]] && nofile=0
 	if ((nofile!=4096));then
@@ -453,9 +473,56 @@ rebootSystem(){
 	sudo reboot
 }
 
-downloadInstallDash(){
+
+# We want to store the Pasta key in the key store of this user, but we need to verify several sources.
+# exit codes
+# 0 - Added to keystore or already present.
+# 1 - Failed download of key.
+# 2 - Failed verification of key.
+# 3 - Key is revoked.
+addKeyToStore(){
+	local id
+	local error
+	id="29590362ec878a81fd3c202b52527bedabe87984"
+	# Attempt to refresh the key (if it exists) to get revocation information in case it is revoked.
+	echo "Refreshing Pasta's public key, if possible..."
+	gpg --refresh-keys $id || gpg --keyserver hkp://keyserver.ubuntu.com --refresh-keys $id
+	# Check if we already have the Pasta key.
+	if gpg -k|grep -q -i $id;then
+		gpg -k $id|grep -q -i revoked &&\
+		{ echo "This Pasta key is revoked!  We cannot trust this key, we cannot continue to download the binaries.";return 3;}
+		return
+	fi
+
+	echo "Downloading Pasta's public key for verification of Dash Core builds..."
+	wget -q -O/tmp/pasta_1.pgp https://keybase.io/pasta/pgp_keys.asc?fingerprint=29590362ec878a81fd3c202b52527bedabe87984 || error=yes
+	wget -q -O/tmp/pasta_2.pgp "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x29590362ec878a81fd3c202b52527bedabe87984" || error=yes
+	wget -q -O/tmp/pasta_3.pgp https://gist.githubusercontent.com/PastaPastaPasta/ae19c1826a91a9c8d126150e903df7e0/raw/6a232f7fad99ee729177883056b8716d79380e73/pasta.pgp || error=yes
+
+	if [[ -n $error ]];then
+		echo "There was an error downloading the public keys, aborting...";return 1
+	fi
+	error=
+
+	echo "Verifying Pasta's public key..."
+	gpg /tmp/pasta_1.pgp | grep -q -i $id || error=yes
+	gpg /tmp/pasta_2.pgp | grep -q -i $id || error=yes
+	gpg /tmp/pasta_3.pgp | grep -q -i $id || error=yes
+	if [[ -n $error ]];then
+		echo "There was an error verifying the public key, aborting...";return 2
+	fi
+	error=
+
+	echo "Adding Pasta's key to the keystore..."
+	gpg --import /tmp/pasta_1.pgp
+}
+
+downloadDashd(){
 	echo "Starting Download of dashcore..."
 	echo "Checking machine type to determine package for download..."
+	local mach
+	local arch
+	local error
 	# Try to be smart and determine arch of this host.
 	mach=$(uname -m)
 	case $mach in
@@ -476,32 +543,42 @@ downloadInstallDash(){
 			;;
 	esac
 	cd /tmp
-	wget -q -O latest https://github.com/dashpay/dash/releases/latest
-	download_path=$(grep "/dashcore.*$arch.*tar.gz\"" latest |awk -F '"' '{print $2}')
-	filename=$(basename "$download_path")
-	if ! wget -q -O "$filename" https://github.com"$download_path";then
-		echo "Download of $filename has failed! Will try another way..."
-		retry_download="Y"
-	else
-		echo "Download of $filename completed successfully!"
-	fi
 	wget -q -O SHA256SUMS.asc https://github.com/dashpay/dash/releases/latest/download/SHA256SUMS.asc ||\
-	{ echo "Download of SHA256SUMS.asc has failed!  Aborting..."; return 3;}
+	{ echo "Download of SHA256SUMS.asc has failed!  Aborting..."; return 2;}
 	echo "Download of SHA256SUMS.asc completed successfully!"
-	if [[ -n $retry_download ]];then
-		awk_string="awk '/dashcore.*$arch.*.tar.gz/ {print \$2}' SHA256SUMS.asc"
-		filename=$(eval "$awk_string")
-		wget -q -O "$filename" https://github.com/dashpay/dash/releases/latest/download/"$filename"
-	fi
-	file_hash=$(sha256sum "$filename"|awk '{print $1}')
-	grep -i "$file_hash" SHA256SUMS.asc|grep "$filename" ||\
-	{ echo "The sha256 hash does not match to the expected!  Cannot continue, aborting..."; return 4;}
-	echo "Verified the hash of $filename successfully !"
+	local awk_string
+	awk_string="awk '/dashcore.*$arch.*.tar.gz/ {print \$2}' SHA256SUMS.asc"
+	local filename
+	filename=$(eval "$awk_string")
+	wget -q -O "$filename" https://github.com/dashpay/dash/releases/latest/download/"$filename" || error=yes
+	wget -q -O "${filename}.asc" https://github.com/dashpay/dash/releases/latest/download/"${filename}.asc" || error=yes
+	[[ -n "$error" ]] && { echo "There was an error downloading $filename and/or ${filename}.asc.  Aborting...";return 3;}
 
+	echo "$filename" >.filename
+}
+
+verifyDashd(){
+	local filename
+	filename="$1"
+	[[ -z "$filename" ]] && { echo "A filename is required to verify dashd.";return 1;}
+	if gpg --verify "${filename}.asc" "$filename";then
+		echo "$filename has verified successfully!"
+	else
+		echo "$filename has NOT verified successfully, cannot continue!"
+		return 2
+	fi
+}
+
+installDashd(){
+	local filename
+	filename="$1"
+	[[ -z "$filename" ]] && { echo "A filename is required to install dashd.";return 1;}
+	[[ -z "$INSTALL_LOCATION" ]] && { echo "I don't know where to install! Check the variable INSTALL_LOCATION.";return 2;}
 	# Now let's install it!
 	echo "Installing the dashcore package..."
 	cd "$INSTALL_LOCATION" ||\
 	{ echo "Install location $INSTALL_LOCATION is not accessible.  Aborting...";return 5;}
+	local base_dir
 	base_dir=$(basename $(tar tf /tmp/"$filename" |head -1))
 	sudo tar xf /tmp/"$filename" ||\
 	{ echo "Failed to extract the archive, check that tar is working.  Aborting...";return 6;}
@@ -512,6 +589,7 @@ downloadInstallDash(){
 	ldd dash/bin/dashd >/dev/null 2>&1 ||\
 	{ echo "dashd is not executable on this machine, possible cause is the wrong architecture was downloaded for this system.  Aborting...";return 8;}
 }
+
 
 
 # Re-runnable, it will only make the change once.
@@ -537,7 +615,8 @@ configurePATH(){
 
 createDashConf(){
 	# Configure a bare bones dash.conf file.
-	DASH_CONF="/home/dash/.dashcore/dash.conf"
+	[[ -z $DASH_CONF ]] && { echo "DASH_CONF is not defined, cannot set this up now.";exit 1;}
+	local option
 	if sudo test -f "$DASH_CONF";then
 		echo "******************** $DASH_CONF ********************"
 		sudo cat "$DASH_CONF"
@@ -555,6 +634,7 @@ createDashConf(){
 		then
 			return 1
 		else
+			local dash_conf_bak
 			dash_conf_bak="$DASH_CONF-"$(date +"%Y%m%d%H%M")
 			sudo -u dash bash -c "cp \"$DASH_CONF\" \"$dash_conf_bak\""
 			echo "A backup has been made of your existing dash conf at $dash_conf_bak"
@@ -563,6 +643,10 @@ createDashConf(){
 
 	# We will try and populate as much as is possible in the below template.
 	echo "Initialising a default dash.conf file for you...."
+	local rpcuser
+	local rpcpassword
+	local ip
+	local bls_key
 	rpcuser=$(getRandomString 40)
 	rpcpassword=$(getRandomString 40)
 	ip=$(curl -s https://icanhazip.com/)||ip=$(curl -s https://ipecho.net/plain)
@@ -606,6 +690,7 @@ EOF"
 }
 
 editDashConf(){
+	[[ -z $DASH_CONF ]] && { echo "DASH_CONF is not defined, cannot set this up now.";exit 1;}
 	msg="Once you are done editing this file exit with CTRL + X and answer Y to save,\\n"
 	msg+="if you're using vi, press ESC, then type in :wq to write and quit."
 	echo -e "$msg"
@@ -705,7 +790,7 @@ WRdkILVRDn2nj3zI0uKpHX7VwcxzI1h8Dbv8YCndh5Q4LEsSyn8rvJL0B+aNueJ7BAAA"|base64 -d|
 
 installRootCrontab(){
 	echo "Configuring root's crontab..."
-
+	local root_crontab
 	root_crontab=$(sudo crontab -u root -l)
 	grep -q "weekly systemctl restart dashd" <<< "$root_crontab" ||\
 	root_crontab+=$(echo -e "\n@weekly systemctl restart dashd")
@@ -714,7 +799,17 @@ installRootCrontab(){
 	echo "Failed to install root cron."
 }
 
-
+# We want the debug log file to be viewable by the MNO user too.
+changePermsDebugLog(){
+	local file
+	local i
+	i=3
+	file="/home/dash/.dashcore/debug.log"
+	while ((i--));do
+		[[ -r "$file" ]] || sudo chmod og+r "$file" && break
+		sleep 1
+	done
+}
 
 installMasternode(){
 
@@ -748,12 +843,17 @@ installMasternode(){
 
 	# Re-running this section on a working masternode should not harm it so long as the user
 	# enters the default options which is to not make breaking changes.
-	downloadInstallDash || echo "Something went wrong with installing dashcore, you might want to look into this."
+	addKeyToStore || { echo "The was a problem with adding Pasta's key to the keystore, please resolve this before trying to continue.";exit 1;}
+	downloadDashd || { echo "Download of dashd has failed, exiting.";exit 1;}
+	filename=$(</tmp/.filename)
+	verifyDashd "$filename" || { echo "The downloaded file $filename does not verify as legit, please resolve this before trying to continue.";exit 1;}
+	installDashd "$filename" || { echo "Failed to install dashd to the system, please resolve this error before trying to continue.";exit 1;}
 	configureManPages
 	configurePATH
 	createDashConf
 	# The below also starts the dashd daemon.
 	createDashdService
+	changePermsDebugLog
 	createTopRC
 	installRootCrontab
 
@@ -765,6 +865,8 @@ installMasternode(){
 # Enter parameter 1 as the block time and out comes the time as a string.
 convertBlocksToTime(){
 
+	local block_time
+	local mins
 	block_time="2.625"
 	(( $# != 1 )) && return 1
 	[[ "$1" =~ ^[0-9]+$ ]] || return 2
@@ -780,6 +882,40 @@ convertBlocksToTime(){
 
 
 showStatus(){
+
+	local cpu
+	local disk
+	local disk_size
+	local disk_used
+	local disk_free
+	local ram
+	local ram_size
+	local ram_used
+	local ram_free
+	local swap_size
+	local swap_used
+	local swap_free
+	local external_ip
+	local port_9999
+	local local_port_9999
+	local dashd_version
+	local dashd_procs
+	local all_procs
+	local num_dashd_procs
+	local dashd_pid
+	local dashd_user
+	local i
+	local p
+	local block_height
+	local blockchair_height
+	local num_peers
+	local masternode_status
+	local pose_score
+	local enabled_mns
+	local mn_sync
+	local last_paid_height
+	local next_payment
+	local linesOfStatsPrinted
 
 	printGraduatedProgressBar 50 0 "Working..."
 	cpu=$(printf '%.2f%%' $(echo "scale=4;$(awk '{print $2}' /proc/loadavg)/$(grep -c ^processor /proc/cpuinfo)*100"|bc))
@@ -800,9 +936,9 @@ showStatus(){
 	swap_used=$(awk '/^Swap/ {print $3}'<<<"$ram")
 	swap_free=$(awk '/^Swap/ {print $4}'<<<"$ram")
 
-	externalip=$(curl -s https://icanhazip.com/)||externalip=$(curl -s https://ipecho.net/plain)
-	(( $? !=0 || ${#externalip} < 7 || ${#externalip} > 15 ))\
-	&& externalip="Error"
+	external_ip=$(curl -s https://icanhazip.com/)||external_ip=$(curl -s https://ipecho.net/plain)
+	(( $? !=0 || ${#external_ip} < 7 || ${#external_ip} > 15 ))\
+	&& external_ip="Error"
 	printGraduatedProgressBar 50 25
 
 
@@ -811,8 +947,8 @@ showStatus(){
 	&& port_9999="Error"
 	printGraduatedProgressBar 50 40
 
-	if [[ "$externalip" != "Error" ]];then
-		curl -s -d test --connect-timeout 2 ${externalip}:9999
+	if [[ "$external_ip" != "Error" ]];then
+		curl -s -d test --connect-timeout 2 ${external_ip}:9999
 		(( $? == 52 ))&&local_port_9999="OPEN"||local_port_9999="CLOSED"
 	else
 		local_port_9999="????"
@@ -945,7 +1081,7 @@ showStatus(){
 	echo -e "$msg"
 
 	printf "$bldblu%17s : $txtgrn%s\n" "dashd version" "$dashd_version"
-	printf "$bldblu%17s : $txtgrn%s\n" "IP address" "$externalip"
+	printf "$bldblu%17s : $txtgrn%s\n" "IP address" "$external_ip"
 	printf "$bldblu%17s : $txtgrn%s\n" "Port (9999)" "$port_9999"
 	printf "$bldblu%17s : $txtgrn%s\n" "Local Port (9999)" "$local_port_9999"
 
@@ -992,6 +1128,8 @@ EOF
 }
 
 reclaimFreeDiskSpace(){
+
+	local option
 	uninstallJunkPackages
 	# Shrink logs.
 	sudo journalctl --disk-usage
@@ -1012,6 +1150,11 @@ reclaimFreeDiskSpace(){
 
 
 bootStrap(){
+
+	local remote_user
+	local remote_ip
+	local option
+	local tarfile
 
 	read -r -p "Enter the Dash Admin username of the remote server, eg mno [[mno]] : " remote_user
 	echo -e "\\n$remote_user">>"$LOGFILE"
@@ -1135,6 +1278,8 @@ function printRootMenu(){
 
 
 function rootMenu(){
+
+	local option
 	while :
 	do
 		echo -en "Choose option [1 [${bldwht}9${txtrst}]]: "
@@ -1162,6 +1307,8 @@ function rootMenu(){
 }
 
 manageMasternodeMenu(){
+
+	local option
 	msg="\n\n"
 	msg+="=====================\n"
 	msg+="== MASTERNODE MENU ==\n"
@@ -1190,11 +1337,16 @@ manageMasternodeMenu(){
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
-			downloadInstallDash
+			addKeyToStore &&\
+			downloadDashd || { echo "Download of dashd has failed, exiting.";exit 1;}
+			filename=$(</tmp/.filename)
+			verifyDashd "$filename" &&\
+			installDashd "$filename"
 			if (( $? == 0 ));then
 				echo "Installation has been successful, restarting the dashd daemon..."
 				sudo systemctl stop dashd
 				sudo systemctl start dashd
+				changePermsDebugLog
 			else
 				echo "Installation of dashd has been unsuccessful, please investigate or seek support!"
 			fi
@@ -1217,6 +1369,7 @@ manageMasternodeMenu(){
 			editDashConf
 			sudo systemctl stop dashd
 			sudo systemctl start dashd
+			changePermsDebugLog
 			read -r -s -n1 -p "Done!  Press any key to continue. "
 			echo
 			return 0
@@ -1254,6 +1407,7 @@ manageMasternodeMenu(){
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
+			changePermsDebugLog
 			displayDebugLog
 			read -r -s -n1 -p "Press any key to continue. "
 			echo
@@ -1272,6 +1426,7 @@ manageMasternodeMenu(){
 }
 
 function printMainMenu(){
+
 	msg="\n\n"
 	msg+="===============\n"
 	msg+="== MAIN MENU ==\n"
@@ -1288,6 +1443,7 @@ function printMainMenu(){
 
 
 function mainMenu (){
+	local option
 	while :
 	do
 		echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
@@ -1354,7 +1510,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.3.10 20231126"
+VERSION="v1.4.0 20231225"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
