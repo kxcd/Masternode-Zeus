@@ -3,7 +3,6 @@
 
 # The author of the software is the owner of the Dash Address: XjwSnc9f81ZVC2GAyKQip5N3Apv2zumRoc
 
-# shellcheck disable=SC1117,SC2181
 
 # Define some colours
 
@@ -205,7 +204,7 @@ createMnoUser(){
 	read -r -n1 option
 	echo -e "\\n$option">>"$LOGFILE"
 	echo
-	local setpassword
+	local setpasswd
 	option=${option:-Y}
 	[[ $option = [yY] ]] && while ! passwd ;do : ;done
 	echo
@@ -223,8 +222,7 @@ createMnoUser(){
 		echo "There is no mno user on this system, creating it now."
 		# Attempt to delete the group in case this is a rogue entry.
 		groupdel mno >/dev/null 2>&1
-		useradd -m -c "Dash Admin" mno -s /bin/bash -G sudo
-		if (( $? != 0 ));then
+		if ! useradd -m -c "Dash Admin" mno -s /bin/bash -G sudo;then
 			msg="Could not create user, this is bad.\\n"
 			msg+="There may be some remnants of it in the passwd or group or shadow files.\\n"
 			msg+="Check those files and clean them up and try again."
@@ -234,7 +232,7 @@ createMnoUser(){
 		setpasswd="Y"
 	fi
 
-	if [[ ! -z $setpasswd ]];then
+	if [[ -n $setpasswd ]];then
 		msg="You will now be prompted to set a password for the mno user.\\n"
 		msg+="Choose a long password and write it down, do not loose this password.\\n"
 		msg+="It should be at least 14 characters long.  Below is a secure and unique password\\n"
@@ -260,10 +258,13 @@ createMnoUser(){
 
 removeUnusedAccounts(){
 	echo "Removing unnecessary accounts..."
-	{
-		sudo userdel -r ubuntu
-		sudo groupdel ubuntu
-	} >/dev/null 2>&1
+	local users
+	local user
+	users="ubuntu linuxuser"
+	for user in $users;do
+		sudo userdel -r "$user"
+		sudo groupdel "$user"
+	done >/dev/null 2>&1
 }
 
 createDashUser(){
@@ -283,8 +284,7 @@ createDashUser(){
 		echo "Creating the dash user."
 		# Attempt to delete the group in case this is a rogue entry.
 		sudo groupdel dash >/dev/null 2>&1
-		sudo useradd -m -c dash dash -s /bin/bash
-		if (( $? != 0 ));then
+		if ! sudo useradd -m -c dash dash -s /bin/bash;then
 			msg="Could not create user, this is bad.\\n"
 			msg+="There may be some remnants of it in the passwd or group or shadow files.\\n"
 			msg+="Check those files and clean them up and try again."
@@ -295,7 +295,7 @@ createDashUser(){
 	fi
 
 
-	if [[ ! -z $setpasswd ]];then
+	if [[ -n $setpasswd ]];then
 		msg="The password for the dash user should be set to something completely random.\\n"
 		msg+="You will never need it for anything. A random password has been generated for you below\\n"
 		msg+="and set for the dash user you can keep a copy if you like, but it is not required.\\n"
@@ -381,8 +381,8 @@ enableFireWall(){
 	echo "Checking for a firewall..."
 	local firewall
 	firewall=$(sudo ufw status)
-	grep -q ^22.tcp\ *[LA][IL][ML] <<<"$firewall" &&\
-	grep -q ^9999.tcp\ *[LA][IL][ML] <<<"$firewall"
+	grep -q "^22.tcp\ *[LA][IL][ML]" <<<"$firewall" &&\
+	grep -q "^9999.tcp\ *[LA][IL][ML]" <<<"$firewall"
 	if (( $? != 0 ));then
 		echo "Setting up a firewall..."
 		sudo ufw allow ssh/tcp &&\
@@ -420,7 +420,7 @@ configureSwap(){
 configureTOR(){
 	echo "Configuring TOR..."
 	local x
-	x=$(grep -c ^Co[no][tk][ri] /etc/tor/torrc)
+	x=$(grep -c "^Co[no][tk][ri]" /etc/tor/torrc)
 	if((x != 3));then
 		sudo bash -c "echo -e 'ControlPort 9051\nCookieAuthentication 1\nCookieAuthFileGroupReadable 1' >> /etc/tor/torrc"
 	fi
@@ -650,7 +650,7 @@ createDashConf(){
 	rpcuser=$(getRandomString 40)
 	rpcpassword=$(getRandomString 40)
 	ip=$(curl -s https://icanhazip.com/)||ip=$(curl -s https://ipecho.net/plain)
-	(( $? !=0 || ${#ip} < 7 || ${#ip} > 15 ))&& ip="XXX.XXX.XXX.XXX"
+	(( $? != 0 || ${#ip} < 7 || ${#ip} > 15 ))&& ip="XXX.XXX.XXX.XXX"
 
 	msg="Next you need your bls private that you got from the 'bls generate' command\\n"
 	msg+="in the core walletor from DMT.\\n"
@@ -708,7 +708,7 @@ editDashConf(){
 		sudo -i -u dash bash -c "vi $DASH_CONF"
 		exec 2>&1
 	else
-		echo "Could not find an editor on you machine, remember to edit the file /home/dash/.dashcore yourself later."
+		echo "Could not find an editor on you machine, remember to edit the file $DASH_CONF yourself later."
 	fi
 }
 
@@ -826,8 +826,7 @@ installMasternode(){
 	increaseNoFileParam
 	addSysCtl && rebootSystem
 
-	sudo -u dash whoami >/dev/null 2>&1
-	if (( $? != 0 ));then
+	if ! sudo -u dash whoami >/dev/null 2>&1;then
 		msg="Cannot run a command as the dash user. Check that the dash user exists\\n"
 		msg+="and that this user $(whoami) has the correct permissions to sudo."
 		echo -e "$msg"
@@ -861,6 +860,23 @@ installMasternode(){
 	echo
 }
 
+# Prints the speed of the primary disk.
+# csv, first field is device path, second field is the result.
+speedTestDisk(){
+	local data
+	local disk
+	local line
+	data=$(lsblk -ni)
+	while IFS= read -r line;do
+		grep -q "disk $" <<< "$line" && { disk=$(awk '{print $1}'<<<"$line");continue;}
+		grep -q "/$" <<< "$line" && break
+	done <<<"$data"
+	if [[ -n $disk ]];then
+		echo -n "/dev/$disk,"
+		sudo hdparm -t /dev/"$disk"|awk -F= '/Timing/ {gsub(/^[ \t]+/,"",$2); print $2}'
+	fi
+}
+
 
 # Enter parameter 1 as the block time and out comes the time as a string.
 convertBlocksToTime(){
@@ -880,7 +896,8 @@ convertBlocksToTime(){
 	fi
 }
 
-
+# Takes no params.
+# Returns the number of lines printed.
 showStatus(){
 
 	local cpu
@@ -888,6 +905,8 @@ showStatus(){
 	local disk_size
 	local disk_used
 	local disk_free
+	local disk_path
+	local disk_speed
 	local ram
 	local ram_size
 	local ram_used
@@ -915,6 +934,7 @@ showStatus(){
 	local mn_sync
 	local last_paid_height
 	local next_payment
+	local width
 	local linesOfStatsPrinted
 
 	printGraduatedProgressBar 50 0 "Working..."
@@ -926,8 +946,16 @@ showStatus(){
 	disk_used=$(awk '/\/$/ {print $3}'<<<"$disk")
 	disk_free=$(awk '/\/$/ {print $4}'<<<"$disk")
 
+	disk_speed=$(speedTestDisk)
+	if [[ -n "$disk_speed" ]];then
+		disk_path=${disk_speed%\,*}
+		disk_speed=${disk_speed#*\,}
+	else
+		disk_speed="Not tested"
+	fi
+
 	ram=$(free -h)
-	printGraduatedProgressBar 50 15
+	printGraduatedProgressBar 50 20
 	ram_size=$(awk '/^Mem/ {print $2}'<<<"$ram")
 	ram_used=$(awk '/^Mem/ {print $3}'<<<"$ram")
 	ram_free=$(awk '/^Mem/ {print $4}'<<<"$ram")
@@ -1059,6 +1087,7 @@ showStatus(){
 
 	printGraduatedProgressBar 50 100
 
+	width=22
 	# Now print it all out nicely formatted on screen.
 	msg="${bldcyn}$(date)\\n"
 	msg+="=====================================================\\n"
@@ -1066,13 +1095,14 @@ showStatus(){
 	msg+="=====================================================\\n"
 	echo -e "$msg"
 
-	printf "$bldblu%17s : $txtgrn%s\n" "CPU Load" "$cpu"
-	printf "$bldblu%17s : $txtgrn%s\n" "Disk used / size" "$disk_used / $disk_size"
-	printf "$bldblu%17s : $txtgrn%s\n" "Disk free" "$disk_free"
-	printf "$bldblu%17s : $txtgrn%s\n" "RAM used / size" "$ram_used / $ram_size"
-	printf "$bldblu%17s : $txtgrn%s\n" "RAM free" "$ram_free"
-	printf "$bldblu%17s : $txtgrn%s\n" "Swap used / size" "$swap_used / $swap_size"
-	printf "$bldblu%17s : $txtgrn%s\n" "Swap free" "$swap_free"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "CPU Load" "$cpu"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Disk used / size" "$disk_used / $disk_size"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Disk free" "$disk_free"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Disk speed ($disk_path)" "$disk_speed"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "RAM used / size" "$ram_used / $ram_size"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "RAM free" "$ram_free"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Swap used / size" "$swap_used / $swap_size"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Swap free" "$swap_free"
 
 	msg="\\n"
 	msg+="$bldcyn=====================================================\\n"
@@ -1080,32 +1110,33 @@ showStatus(){
 	msg+="=====================================================\\n"
 	echo -e "$msg"
 
-	printf "$bldblu%17s : $txtgrn%s\n" "dashd version" "$dashd_version"
-	printf "$bldblu%17s : $txtgrn%s\n" "IP address" "$external_ip"
-	printf "$bldblu%17s : $txtgrn%s\n" "Port (9999)" "$port_9999"
-	printf "$bldblu%17s : $txtgrn%s\n" "Local Port (9999)" "$local_port_9999"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "dashd version" "$dashd_version"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "IP address" "$external_ip"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Port (9999)" "$port_9999"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Local Port (9999)" "$local_port_9999"
 
 	if (( num_dashd_procs == 0 ));then
-		printf "$bldblu%17s : $txtgrn%s\n" "dashd running?" "No!"
+		printf "$bldblu%${width}s : $txtgrn%s\n" "dashd running?" "No!"
 	else
 		for ((i=0; i<${#dashd_pid[@]}; i++));do
-			printf "$bldblu%17s : $txtgrn%s\n" "dashd pid / user" "${dashd_pid[$i]} / ${dashd_user[$i]}"
+			printf "$bldblu%${width}s : $txtgrn%s\n" "dashd pid / user" "${dashd_pid[$i]} / ${dashd_user[$i]}"
 		done
 	fi
 
-	printf "$bldblu%17s : $txtgrn%s\n" "Block height" "$block_height"
-	printf "$bldblu%17s : $txtgrn%s\n" "Blockchair height" "$blockchair_height"
-	printf "$bldblu%17s : $txtgrn%s\n" "CryptoId height" "$cryptoid_height"
-	printf "$bldblu%17s : $txtgrn%s\n" "Connected peers" "$num_peers"
-	printf "$bldblu%17s : $txtgrn%s\n" "Masternode status" "$masternode_status"
-	printf "$bldblu%17s : $txtgrn%s\n" "PoSe score" "$pose_score"
-	printf "$bldblu%17s : $txtgrn%s\n" "Masternode sync" "$mn_sync"
-	printf "$bldblu%17s : $txtgrn%s\n" "Next payment" "$next_payment"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Block height" "$block_height"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Blockchair height" "$blockchair_height"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "CryptoId height" "$cryptoid_height"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Connected peers" "$num_peers"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Masternode status" "$masternode_status"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "PoSe score" "$pose_score"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Masternode sync" "$mn_sync"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Next payment" "$next_payment"
 	echo -e "$txtrst"
-	linesOfStatsPrinted=32
+	linesOfStatsPrinted=33
 	if (( num_dashd_procs > 1));then
 		((linesOfStatsPrinted=linesOfStatsPrinted + num_dashd_procs -1))
 	fi
+	return "$linesOfStatsPrinted"
 }
 
 
@@ -1147,7 +1178,9 @@ reclaimFreeDiskSpace(){
 	[[ $option = [rR] ]] && sudo reboot
 }
 
-
+updateOS(){
+	sudo apt update&&sudo apt list --upgradable&&read -p "Press ENTER to continue..."&&sudo apt upgrade&&sudo apt autoremove --purge&&sudo apt clean
+}
 
 bootStrap(){
 
@@ -1173,7 +1206,7 @@ bootStrap(){
 		echo -e "\\n$tarfile">>"$LOGFILE"
 	else
 		echo "We are ready to connect to the remote server, when prompted enter the password for it."
-		ssh $remote_user@$remote_ip <<EOF
+		ssh "$remote_user@$remote_ip" <<EOF
 		echo "Shutting down dashd on remote server."
 		sudo systemctl stop dashd
 		echo "Creating tar of the current dashcore directory."
@@ -1184,7 +1217,7 @@ EOF
 	fi
 	tarfile=${tarfile:-"/tmp/dashcore.tar.bz2"}
 	echo "Downloading the tarfile to this server, when promoted, enter the remote user's password."
-	scp $remote_user@$remote_ip:$tarfile /tmp/
+	scp "$remote_user@$remote_ip:$tarfile" /tmp/
 	echo "Extracting tar file to /home/dash"
 	sudo -i -u dash bash -c "rm -fr ~/.dashcore;tar xvf /tmp/dashcore.tar.bz2&&cd ~/.dashcore&&yes|rm -fr *.conf se\t* *.pid *.dat *.lock *.log backup/"
 	createDashConf
@@ -1436,7 +1469,8 @@ function printMainMenu(){
 	msg+="2. Check system status.\n"
 	msg+="3. Manage your masternode.\n"
 	msg+="4. Reclaim free disk space.\n"
-	msg+="5. Bootstrap this server from another VPS running a fully synced DASH Masternode.\n"
+	msg+="5. Update the OS (recommended).\n"
+	msg+="6. Bootstrap this server from another VPS running a fully synced DASH Masternode.\n"
 	msg+="9. Quit.\n"
 	echo -e "$msg"
 }
@@ -1444,6 +1478,7 @@ function printMainMenu(){
 
 function mainMenu (){
 	local option
+	local scroll_back_lines
 	while :
 	do
 		echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
@@ -1460,10 +1495,12 @@ function mainMenu (){
 				option='r'
 				while [[ "$option" = 'R' || "$option" = 'r' ]];do
 					showStatus
+					scroll_back_lines=$?
+					((scroll_back_lines++))
 					echo -en "Press $bldwht""R""$txtrst to check status again or any other key to return to main menu. "
 					read -r -n1 option
 					option=${option:-N}
-					[[ $option = [rR] ]] && echo -e "\e[$((linesOfStatsPrinted +1))A\e[73D"
+					[[ $option = [rR] ]] && echo -e "\e[${scroll_back_lines}A\e[73D"
 				done
 				echo
 				return 0
@@ -1477,6 +1514,11 @@ function mainMenu (){
 				return 0
 				;;
 			5)
+				updateOS
+				read -r -s -n1 -p "Press any key to continue. "
+				return 0
+				;;
+			6)
 				msg="This option will allow you to bootstrap this masternode with blockchain\n"
 				msg+="data from another masternode.  This can make syncing a lot faster.\n"
 				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
@@ -1510,7 +1552,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.0 20231225"
+VERSION="v1.4.1 20231226"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
