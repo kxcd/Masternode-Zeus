@@ -601,15 +601,23 @@ configureManPages(){
 
 # Re-runnable, it will only make the change once.
 # This is specific to Debian based OSs only.
+# Each argument is the username to adjust.
 configurePATH(){
-	echo "Adding Dash binaries to the PATH of the dash user..."
+	# Exit if no arguments given.
+	(($#<1))&&return;
+	# Exit if I am unfamiliar with how the shell is setup on this OS.
 	osCheck >/dev/null 2>&1
-	if (( $? <= 1 ));then
-		sudo bash -c "grep -q '^PATH=\$PATH:/opt/dash/bin' /home/dash/.profile||\
-			echo 'PATH=\$PATH:/opt/dash/bin'>>/home/dash/.profile"
-	else
-		echo "Your operating system is not supported, please edit your PATH manually."
-	fi
+	(( $? > 1 ))&&{ echo "Your operating system is not supported, please edit your PATH manually.";return;}
+	# For each parameter (user) adjust their PATH if required.
+	while :;do
+		# Exit if this parameter is empty.
+		[[ -z "$1" ]]&&break
+		echo "Adding Dash binaries to the PATH of the $1 user..."
+		sudo bash -c "grep -q '^\[\[ -d /opt/dash/bin \]\]&&PATH=\$PATH:/opt/dash/bin' /home/$1/.profile||\
+			echo '[[ -d /opt/dash/bin ]]&&PATH=\$PATH:/opt/dash/bin'>>/home/$1/.profile"
+		# Move the parameters down and exit when they are all consumed.
+		shift||break
+	done
 }
 
 
@@ -848,7 +856,7 @@ installMasternode(){
 	verifyDashd "$filename" || { echo "The downloaded file $filename does not verify as legit, please resolve this before trying to continue.";exit 1;}
 	installDashd "$filename" || { echo "Failed to install dashd to the system, please resolve this error before trying to continue.";exit 1;}
 	configureManPages
-	configurePATH
+	configurePATH dash mno
 	createDashConf
 	# The below also starts the dashd daemon.
 	createDashdService
@@ -1552,7 +1560,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.2 20240111"
+VERSION="v1.4.3 20240124"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 # dashd install location.
