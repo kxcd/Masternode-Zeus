@@ -160,7 +160,7 @@ idCheck(){
 	local sid
 	sid=$(sudo id -u)
 	(( $? != 0 )) && return 2
-	(( sid == 0 )) && return 0
+	(( sid == 0 )) && { MNO_USER=$(whoami);return 0;}
 }
 
 
@@ -308,7 +308,7 @@ createDashUser(){
 	fi
 
 	# Finally add the mno user to the dash group.
-	sudo usermod -aG dash mno
+	sudo usermod -aG dash "$MNO_USER"
 }
 
 
@@ -327,7 +327,7 @@ preventRootSSHLogins(){
 		"grep -q \".*PermitRootLogin [ny][oe].*\" /etc/ssh/sshd_config &&\
 		sed -i 's/.*PermitRootLogin [ny][oe].*/PermitRootLogin no/g' /etc/ssh/sshd_config||\
 		echo \"PermitRootLogin no\">>/etc/ssh/sshd_config"
-	else echo "Only run this block as your Dash Admin (mno) user, not root."; fi
+	else echo "Only run this block as your Dash Admin ($MNO_USER) user, not root."; fi
 	read -r -s -n1 -p "Press any key to continue. ";echo
 }
 
@@ -600,8 +600,9 @@ configureManPages(){
 }
 
 # Re-runnable, it will only make the change once.
-# This is specific to Debian based OSs only.
+# This is specific to Debian based OSes only.
 # Each argument is the username to adjust.
+
 configurePATH(){
 	# Exit if no arguments given.
 	(($#<1))&&return;
@@ -856,7 +857,7 @@ installMasternode(){
 	verifyDashd "$filename" || { echo "The downloaded file $filename does not verify as legit, please resolve this before trying to continue.";exit 1;}
 	installDashd "$filename" || { echo "Failed to install dashd to the system, please resolve this error before trying to continue.";exit 1;}
 	configureManPages
-	configurePATH dash mno
+	configurePATH dash "$MNO_USER"
 	createDashConf
 	# The below also starts the dashd daemon.
 	createDashdService
@@ -1439,8 +1440,8 @@ manageMasternodeMenu(){
 			msg+="g - Pressing lowercase g takes you to the start (oldest entries).\n"
 			msg+="q - To quit.\n"
 			msg+="/ - Typing / and search term will search the file for that term.\n"
-			msg+="n - When in search mode n will skip to the next occurance of the term.\n"
-			msg+="b - When in search mode b will go back to the previous occurance of the term.\n"
+			msg+="n - When in search mode n will skip to the next occurrence of the term.\n"
+			msg+="b - When in search mode b will go back to the previous occurrence of the term.\n"
 			msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
 			echo -en "$msg"
 			read -r -n1 option
@@ -1560,9 +1561,10 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.3 20240124"
+VERSION="v1.4.4 20240202"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
+MNO_USER=mno
 # dashd install location.
 INSTALL_LOCATION="/opt"
 DASH_CONF="/home/dash/.dashcore/dash.conf"
