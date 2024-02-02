@@ -169,8 +169,14 @@ idCheck(){
 # Returns 0 for successful confirmation of Debian or Ubuntu OS.
 # Returns 1 for Raspbian.
 # Returns 2 for Fedora - Maybe be a supported OS in a later version
-# Returns 9 for all other OSs.
+# Returns 9 for all other OSes.
+
 osCheck(){
+	# First check for Raspberry Pi, it can sometimes pass as Debian as well.
+	if { cat /etc/hostname;uname -n;hostnamectl;}|grep -qi raspberrypi;then
+		echo "OS Check passed, operating system is Raspberry Pi OS."
+		return 1
+	fi
 	if grep ^NAME /etc/os-release|grep -qi "Ubuntu\|Debian";then
 		echo "OS Check passed, operating system is Debian based."
 		return 0
@@ -332,6 +338,8 @@ preventRootSSHLogins(){
 }
 
 uninstallJunkPackages(){
+	# This is not required for Raspberry Pi.
+	((OS==1))&&return
 	# Removing this list of programs should be safe for running of masternode and infact should make it more secure since
 	# tmux and screen are good ways for hackers to hide their running sessions.
 	# Remove polkit because CVE was discovered in it and it seems to be pretty much useless.
@@ -378,6 +386,8 @@ updateSystem(){
 
 
 enableFireWall(){
+	# This is not required for Raspberry Pi.
+	((OS==1))&&return
 	echo "Checking for a firewall..."
 	local firewall
 	firewall=$(sudo ufw status)
@@ -398,6 +408,8 @@ enableFireWall(){
 }
 
 configureSwap(){
+	# This is not required for Raspberry Pi.
+	((OS==1))&&return
 	echo "Checking your available swap space..."
 	local swapfile
 	if (( $(free -m|awk '/Swap/ {print $2}') < 3096 ));then
@@ -658,7 +670,7 @@ createDashConf(){
 	local bls_key
 	rpcuser=$(getRandomString 40)
 	rpcpassword=$(getRandomString 40)
-	ip=$(curl -s https://icanhazip.com/)||ip=$(curl -s https://ipecho.net/plain)
+	ip=$(curl -4s https://icanhazip.com/)||ip=$(curl -4s https://ipecho.net/plain)
 	(( $? != 0 || ${#ip} < 7 || ${#ip} > 15 ))&& ip="XXX.XXX.XXX.XXX"
 
 	msg="Next you need your bls private that you got from the 'bls generate' command\\n"
@@ -722,7 +734,7 @@ editDashConf(){
 }
 
 # Next we wish to register the `dashd` deamon as a system process so that is starts
-# automatically when the VPS boots and shutdown automatically when the VPS shutsdown,
+# automatically when the VPS boots and shutdown automatically when the VPS shuts down,
 # it will also restart the process if it should crash for some reason.
 createDashdService(){
 	[[ -f /etc/systemd/system/dashd.service ]] &&\
@@ -733,7 +745,8 @@ createDashdService(){
 [Unit]
 Description=Dash Core Daemon
 Documentation=https://dash.org
-After=syslog.target network.target
+Requires=network-online.target
+After=network-online.target
 
 # Watch the daemon service actions in the syslog journal with:
 # sudo journalctl -u dashd.service -f
@@ -973,19 +986,19 @@ showStatus(){
 	swap_used=$(awk '/^Swap/ {print $3}'<<<"$ram")
 	swap_free=$(awk '/^Swap/ {print $4}'<<<"$ram")
 
-	external_ip=$(curl -s https://icanhazip.com/)||external_ip=$(curl -s https://ipecho.net/plain)
+	external_ip=$(curl -4s https://icanhazip.com/)||external_ip=$(curl -4s https://ipecho.net/plain)
 	(( $? !=0 || ${#external_ip} < 7 || ${#external_ip} > 15 ))\
 	&& external_ip="Error"
 	printGraduatedProgressBar 50 25
 
 
-	port_9999=$(curl -s https://mnowatch.org/9999/)
+	port_9999=$(curl -4s https://mnowatch.org/9999/)
 	(( ${#port_9999} < 3 || ${#port_9999} > 10 ))\
 	&& port_9999="Error"
 	printGraduatedProgressBar 50 40
 
 	if [[ "$external_ip" != "Error" ]];then
-		curl -s -d test --connect-timeout 2 ${external_ip}:9999
+		curl -4s -d test --connect-timeout 2 ${external_ip}:9999
 		(( $? == 52 ))&&local_port_9999="OPEN"||local_port_9999="CLOSED"
 	else
 		local_port_9999="????"
@@ -1561,7 +1574,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.4 20240202"
+VERSION="v1.4.5 20240202"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
@@ -1578,7 +1591,7 @@ exec 4>&2
 	getLogo
 	osCheck
 	OS=$?;export OS
-	(( OS <= 1 ))|| exit $OS
+	(( OS > 1 )) && exit $OS
 	idCheck
 	idcheckretval=$?
 	retval=0
