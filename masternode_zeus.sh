@@ -173,7 +173,7 @@ idCheck(){
 
 osCheck(){
 	# First check for Raspberry Pi, it can sometimes pass as Debian as well.
-	if { cat /etc/hostname;uname -n;hostnamectl;}|grep -qi raspberrypi;then
+	if { cat /etc/hostname /proc/cpuinfo;uname -n;hostnamectl;}|grep -qiE raspberry.?pi;then
 		echo "OS Check passed, operating system is Raspberry Pi OS."
 		return 1
 	fi
@@ -1574,7 +1574,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.5 20240202"
+VERSION="v1.4.6 20240203"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
