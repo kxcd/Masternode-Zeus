@@ -744,7 +744,7 @@ createDashdService(){
 	sudo bash -c "cat >/etc/systemd/system/dashd.service<<\"EOF\"
 [Unit]
 Description=Dash Core Daemon
-Documentation=https://dash.org
+Documentation=https://dash.org/
 Requires=network-online.target
 After=network-online.target
 
@@ -775,7 +775,8 @@ StartLimitBurst=3
 
 # If the OOM kills this process, systemd should restart it.
 OOMPolicy=continue
-
+IPAccounting=yes
+IOAccounting=yes
 PrivateTmp=true
 
 [Install]
@@ -1574,7 +1575,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.6 20240203"
+VERSION="v1.4.7 20240204"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
