@@ -938,6 +938,7 @@ showStatus(){
 	local swap_used
 	local swap_free
 	local external_ip
+	local onion_addr
 	local port_9999
 	local local_port_9999
 	local dashd_version
@@ -990,7 +991,10 @@ showStatus(){
 	external_ip=$(curl -4s https://icanhazip.com/)||external_ip=$(curl -4s https://ipecho.net/plain)
 	(( $? !=0 || ${#external_ip} < 7 || ${#external_ip} > 15 ))\
 	&& external_ip="Error"
-	printGraduatedProgressBar 50 25
+	onion_addr=$(sudo -i -u dash bash -c "dash-cli getnetworkinfo" |  jq -r '.localaddresses[] | select(.address | contains(".onion")) | .address')
+  (( $? !=0 ))\
+  && onion_addr="Error"
+  printGraduatedProgressBar 50 25
 
 
 	port_9999=$(curl -4s https://mnowatch.org/9999/)
@@ -1135,6 +1139,7 @@ showStatus(){
 
 	printf "$bldblu%${width}s : $txtgrn%s\n" "dashd version" "$dashd_version"
 	printf "$bldblu%${width}s : $txtgrn%s\n" "IP address" "$external_ip"
+	printf "$bldblu%${width}s : $txtgrn%s\n" "Onion address" "$onion_addr"
 	printf "$bldblu%${width}s : $txtgrn%s\n" "Port (9999)" "$port_9999"
 	printf "$bldblu%${width}s : $txtgrn%s\n" "Local Port (9999)" "$local_port_9999"
 
