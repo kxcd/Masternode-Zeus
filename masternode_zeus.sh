@@ -516,7 +516,7 @@ addKeyToStore(){
 	if gpg -k|grep -q -i $id;then
 		gpg -k $id|grep -q -i revoked &&\
 		{ echo "This Pasta key is revoked!  We cannot trust this key, we cannot continue to download the binaries.";return 3;}
-		return
+		return 0
 	fi
 
 	echo "Downloading Pasta's public key for verification of Dash Core builds..."
@@ -1620,7 +1620,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.8 20240208"
+VERSION="v1.4.9 20240208"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
