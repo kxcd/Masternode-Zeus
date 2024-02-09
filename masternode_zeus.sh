@@ -582,6 +582,74 @@ downloadDashd(){
 	echo "$filename" >.filename
 }
 
+downloadNightlyDashd(){
+	echo "Starting Download of nightly dashcore..."
+	echo "Checking machine type to determine package for download..."
+	local mach
+	local arch
+	local base_dir
+	local filename
+	local url
+	local assets_page
+	local p
+	local download_paths
+	# Try to be smart and determine arch of this host.
+	mach=$(uname -m)
+	case $mach in
+		armv7l)
+			arch="arm-linux-gnueabihf"
+			;;
+		aarch64)
+			arch="aarch64-linux-gnu"
+			;;
+		x86_64)
+			arch="x86_64-linux-gnu"
+			;;
+		*)
+			msg="ERROR: Machine type ($mach) not recognised.\\n"
+			msg+="Could not download the dashcore binaries.  Aborting..."
+			echo -e "$msg"
+			return 1
+			;;
+	esac
+	echo "Cool!  Determined we need to get $arch."
+	cd /tmp
+	# First we get the HTML page from where a user would normally go, but because of lazy loading,
+	# the page does not link the assets we want.
+	url="https://github.com/dashpay/dash-dev-branches/releases/latest"
+	echo "Fetching $url..."
+	wget -q -Olatest "$url"
+
+	# Try to find the link to the page the assets we are interested in are.
+	assets_page=$(grep -o -i src=\"https://github.com.*dashpay.*nightly.*\" latest|awk -F '"' '{print $2}')
+	echo "OK!  Now fetching the assets page $assets_page...."
+	wget -q -Oassets "$assets_page"
+
+	# There are two files, the main binary and the debug symbols.
+	download_paths=$(grep "/dashcore.*$arch.*tar.gz\"" assets |awk -F '"' '{print $2}')
+	for p in $download_paths;do
+		filename=$(basename "$p")
+		p="https://github.com${p}"
+		echo "Neat!  Now starting download of $p"
+		wget -q -O "$filename" "$p"
+		cd "$INSTALL_LOCATION"
+		echo "Untarring $filename..."
+		sudo tar xf /tmp/"$filename"||\
+		{ echo "Failed to extract the archive, check that tar is working.  Aborting...";return 6;}
+		cd /tmp
+	done
+	cd "$INSTALL_LOCATION"
+	sudo rm -f dash >/dev/null 2>&1
+	base_dir=$(basename $(tar tf /tmp/"$filename" |head -1))
+	sudo ln -s "$base_dir" dash
+	[[ -f dash/bin/dashd ]] ||\
+	{ echo "dashd is not accessible via the symlink.  Aborting...";return 7;}
+	ldd dash/bin/dashd >/dev/null 2>&1 ||\
+	{ echo "dashd is not executable on this machine, possible cause is the wrong architecture was downloaded for this system.  Aborting...";return 8;}
+}
+
+
+
 verifyDashd(){
 	local filename
 	filename="$1"
@@ -900,12 +968,13 @@ installMasternode(){
 	verifyDashd "$filename" || { echo "The downloaded file $filename does not verify as legit, please resolve this before trying to continue.";exit 1;}
 	installDashd "$filename" || { echo "Failed to install dashd to the system, please resolve this error before trying to continue.";exit 1;}
 	configureManPages
-	configurePATH dash "$MNO_USER"
+	configurePATH "$DASH_USER" "$MNO_USER"
 	createDashConf "$DASH_USER"||{ echo "Failed to add create dash.conf for $DASH_USER...";exit 1;}
 	# The below also starts the dashd daemon.
 	createDashdService "$DASH_USER"|| { echo "Failed to add create systemd service for $DASH_USER...";exit 1;}
 	changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
 	createTopRC
+	createAlias `whoami` "$DASH_USER"
 	installRootCrontab
 
 	read -r -s -n1 -p "Installation has completed successfully, press any key to continue. "
@@ -926,6 +995,35 @@ speedTestDisk(){
 	if [[ -n $disk ]];then
 		echo -n "/dev/$disk,"
 		sudo hdparm -t /dev/"$disk"|awk -F= '/Timing/ {gsub(/^[ \t]+/,"",$2); print $2}'
+	fi
+}
+
+# re-runnable
+# Accepts one argument, the name of the user to provide this for.
+passwordlessSudo(){
+	local user
+	user="$1"
+	[[ -z "$user" ]] && { echo "Please provide the user to give password-less sudo access.";return 1;}
+	file="/etc/sudoers.d/010_${user}-nopasswd"
+	echo "$user ALL=(ALL) NOPASSWD: ALL" | sudo tee "$file"
+	sudo chmod 440 "$file"
+}
+
+# re-runnable
+# This function will add an alias for dash-cli to the .bashrc of the user specified in the first argument.
+# The second argument should be the dash user name, eg 'dash'
+createAlias(){
+	local alias
+	local dash_user
+	local mno_user
+	mno_user="$1";dash_user="$2"
+	[[ -z "$mno_user" ]] && { echo "Please provide the user for which to create the alias as the first argument.";return 1;}
+	[[ -z "$dash_user" ]] && { echo "Please provide the dash user as the second argument.";return 1;}
+	alias="alias dash-cli='dash-cli -conf=/home/$dash_user/.dashcore/dash.conf'"
+	local bashrc
+	bashrc="/home/$mno_user/.bashrc"
+	if ! grep -q "^${alias}$" "$bashrc" ;then
+		echo -e "\n$alias\n" >> "$bashrc"
 	fi
 }
 
@@ -1246,6 +1344,10 @@ updateOS(){
 	sudo apt update&&sudo apt list --upgradable&&read -p "Press ENTER to continue..."&&sudo apt upgrade&&sudo apt autoremove --purge&&sudo apt clean
 }
 
+updateDMZ(){
+	echo "Not implemented yet."
+}
+
 # Takes one parameter, the name of the Dash user, eg 'dash'.
 bootStrap(){
 
@@ -1410,15 +1512,19 @@ function rootMenu(){
 manageMasternodeMenu(){
 
 	local option
+	local filename
 	msg="\n\n"
 	msg+="=====================\n"
 	msg+="== MASTERNODE MENU ==\n"
 	msg+="=====================\n"
 	msg+="\n\nMake a selection from the below options.\n"
-	msg+="1. (Re)install dash binaries, use this for updates.\n"
+	msg+="1. (Re)install Dash binaries, use this for updates.\n"
 	msg+="2. Review and edit your dash.conf file.\n"
 	msg+="3. Reindex dashd.\n"
 	msg+="4. View debug.log.\n"
+	if [[ -n "$ENABLE_DASHCORE_NIGHTLY" ]];then
+		msg+="8. (Re)install Dash Nightly binaries.\n"
+	fi
 	msg+="9. Return to Main Menu.\n"
 	echo -e "$msg"
 	echo -en "Choose option [1 2 3 4 5 [${bldwht}9$txtrst]]: "
@@ -1514,6 +1620,27 @@ manageMasternodeMenu(){
 			echo
 			return 0
 			;;
+		8)
+			if [[ -n "$ENABLE_DASHCORE_NIGHTLY" ]];then
+				msg="This will install the latest nightly builds.\n"
+				msg+="*** Only use for testing. ***\n"
+				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
+				echo -en "$msg"
+				read -r -n1 option
+				echo -e "\n$option">>"$LOGFILE"
+				option=${option:-N}
+				[[ $option = [yY] ]] || return 0
+				echo
+				downloadNightlyDashd|| { echo "Download of dashd has failed, exiting.";exit 1;}
+				echo "Installation has been successful, restarting the dashd daemon..."
+				sudo systemctl stop dashd
+				sudo systemctl start dashd
+				changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
+				read -r -s -n1 -p "Press any key to continue. "
+				echo
+			fi
+			return 0
+			;;
 		9)
 			echo "Back to Main Menu..."
 			return 9
@@ -1538,7 +1665,9 @@ function printMainMenu(){
 	msg+="3. Manage your masternode.\n"
 	msg+="4. Reclaim free disk space.\n"
 	msg+="5. Update the OS (recommended).\n"
-	msg+="6. Bootstrap this server from another VPS running a fully synced DASH Masternode.\n"
+	msg+="6. Update Dash Masternode Zeus (DMZ).\n"
+	msg+="7. Password-less sudo.\n"
+	msg+="8. Bootstrap this server from another VPS running a fully synced DASH Masternode.\n"
 	msg+="9. Quit.\n"
 	echo -e "$msg"
 }
@@ -1587,6 +1716,26 @@ function mainMenu (){
 				return 0
 				;;
 			6)
+				updateDMZ
+				read -r -s -n1 -p "Press any key to continue. "
+				return 0
+				;;
+			7)
+				msg="This option will remove the requirement for this user '$(whoami)'\n"
+				msg+="having to enter their password each time a sudo operation is requested.\n"
+				msg+="This weakens the security of the machine and is not recommended.\n"
+				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
+				echo -en "$msg"
+				read -r -n1 option
+				echo -e "\n$option">>"$LOGFILE"
+				option=${option:-N}
+				[[ $option = [yY] ]] || return 0
+				echo
+				passwordlessSudo `whoami`
+				read -r -s -n1 -p "Press any key to continue. "
+				return 0
+				;;
+			8)
 				msg="This option will allow you to bootstrap this masternode with blockchain\n"
 				msg+="data from another masternode.  This can make syncing a lot faster.\n"
 				msg+="Press Y to proceed, or any other key to return to the main menu [y [${bldwht}N${txtrst}]] "
@@ -1620,14 +1769,17 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.4.9 20240208"
+VERSION="v1.5.0 20240209"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
 DASH_USER=dash
 # dashd install location.
 INSTALL_LOCATION="/opt"
-DASH_CONF="/home/dash/.dashcore/dash.conf"
+DASH_CONF="/home/$DASH_USER/.dashcore/dash.conf"
+# Set this variable to enable installation of experimental nightly builds.
+# This is for testing only and not running on mainnet.
+ENABLE_DASHCORE_NIGHTLY=
 
 # I need to save the file descriptor for stderr since without a
 # working stderr nano doesn't work correctly.
