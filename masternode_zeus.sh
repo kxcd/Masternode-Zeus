@@ -1769,7 +1769,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.5.0 20240209"
+VERSION="v1.5.1 20240210"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
@@ -1777,9 +1777,12 @@ DASH_USER=dash
 # dashd install location.
 INSTALL_LOCATION="/opt"
 DASH_CONF="/home/$DASH_USER/.dashcore/dash.conf"
+
 # Set this variable to enable installation of experimental nightly builds.
 # This is for testing only and not running on mainnet.
-ENABLE_DASHCORE_NIGHTLY=
+if ! set|grep -q ENABLE_DASHCORE_NIGHTLY;then
+	ENABLE_DASHCORE_NIGHTLY=
+fi
 
 # I need to save the file descriptor for stderr since without a
 # working stderr nano doesn't work correctly.
