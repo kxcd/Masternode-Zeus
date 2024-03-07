@@ -202,9 +202,9 @@ getRandomString(){
 
 createMnoUser(){
 
+	[[ -z "$MNO_USER" ]] && { echo "Please set the name of the mno user with the MNO_USER to continue.";return 1;}
 	local option
-	msg="Creating the mno user.\\n"
-	msg+="If you have not yet reset your root password, it is recommended to do so now.\\n"
+	msg="If you have not yet reset your root password, it is recommended to do so now.\\n"
 	msg+="Would you like to reset the password of the root user? [[${bldwht}Y${txtrst}] n] "
 	echo -en "$msg"
 	read -r -n1 option
@@ -212,24 +212,31 @@ createMnoUser(){
 	echo
 	local setpasswd
 	option=${option:-Y}
-	[[ $option = [yY] ]] && while ! passwd ;do : ;done
+	if [[ $option = [yY] ]];then
+		msg="Choose a long password and write it down, do not lose this password.\\n"
+		msg+="It should be at least 14 characters long.  Below is a secure and unique password\\n"
+		msg+="you can use for this account, be sure to keep a copy in your password vault if you do.\\n\\n"
+		msg+="${bldwht}$(getRandomString 32)${txtrst}\\n\\n"
+		echo -e "$msg"
+		while ! passwd ;do : ;done
+	fi
 	echo
 
-	if grep -q ^mno /etc/passwd;then
-		echo "Found existing mno user on this system."
-		grep mno /etc/group|grep -q sudo || { echo "Adding mno to the sudo group";usermod -aG sudo mno; }
-		echo -en "Would you like to reset the password of the mno user? [y [${bldwht}N${txtrst}]] "
+	if grep -q ^"$MNO_USER" /etc/passwd;then
+		echo "Found existing $MNO_USER user on this system."
+		grep "$MNO_USER" /etc/group|grep -q sudo || { echo "Adding $MNO_USER to the sudo group";usermod -aG sudo "$MNO_USER";}
+		echo -en "Would you like to reset the password of the $MNO_USER user? [y [${bldwht}N${txtrst}]] "
 		read -r -n1 option
 		echo -e "\\n$option">>"$LOGFILE"
 		echo
 		option=${option:-Y}
 		[[ $option = [yY] ]] && setpasswd="Y"
 	else
-		echo "There is no mno user on this system, creating it now."
+		echo "There is no $MNO_USER user on this system, creating it now."
 		# Attempt to delete the group in case this is a rogue entry.
-		groupdel mno >/dev/null 2>&1
-		if ! useradd -m -c "Dash Admin" mno -s /bin/bash -G sudo;then
-			msg="Could not create user, this is bad.\\n"
+		groupdel "$MNO_USER" >/dev/null 2>&1
+		if ! useradd -m -c "Dash Admin" "$MNO_USER" -s /bin/bash -G sudo;then
+			msg="Could not create user $MNO_USER, this is bad.\\n"
 			msg+="There may be some remnants of it in the passwd or group or shadow files.\\n"
 			msg+="Check those files and clean them up and try again."
 			echo -e "$msg"
@@ -239,31 +246,32 @@ createMnoUser(){
 	fi
 
 	if [[ -n $setpasswd ]];then
-		msg="You will now be prompted to set a password for the mno user.\\n"
-		msg+="Choose a long password and write it down, do not loose this password.\\n"
+		msg="You will now be prompted to set a password for the $MNO_USER user.\\n"
+		msg+="Choose a long password and write it down, do not lose this password.\\n"
 		msg+="It should be at least 14 characters long.  Below is a secure and unique password\\n"
 		msg+="you can use for this account, be sure to keep a copy in your password vault if you do.\\n\\n"
 		msg+="${bldwht}$(getRandomString 32)${txtrst}\\n\\n"
 		echo -e "$msg"
-		while ! passwd mno;do : ;done
+		while ! passwd "$MNO_USER";do : ;done
 		echo
 		read -r -s -n1 -p "Press any key to continue. "
 		echo
 	fi
 
-	[[ ! -d /home/mno/bin ]] && mkdir /home/mno/bin
-	cp "$ZEUS" /home/mno/bin&&chown -R mno:mno /home/mno/bin
+	[[ ! -d /home/"$MNO_USER"/bin ]] && mkdir /home/"$MNO_USER"/bin
+	cp "$ZEUS" /home/"$MNO_USER"/bin&&chown -R "$MNO_USER":"$MNO_USER" /home/"$MNO_USER"/bin
 
-	msg="The mno user is now ready to use, please logout and log back in as the mno user\\n"
-	msg+="to continue with setting up your masternode. This script has been copied to the bin directory of the\\n"
-	msg+="mno user, when you have logged back in as mno, you can continue this script by typing in ${bldwht}$(basename "$ZEUS")${txtrst}\\n"
+	msg="The $MNO_USER user is now ready to use, please logout and log back in as the $MNO_USER user\\n"
+	msg+="to continue with setting up your masternode. This script has been copied to the\\n"
+	msg+="bin directory of the $MNO_USER user, when you have logged back in as $MNO_USER,\\n"
+	msg+="you can continue this script by typing in ${bldwht}$(basename "$ZEUS")${txtrst}\\n"
 	echo -e "$msg"
 	read -r -s -n1 -p "Press any key to continue. "
 	echo
 }
 
 removeUnusedAccounts(){
-	echo "Removing unnecessary accounts..."
+	echo -e "${bldwht}Removing unnecessary accounts...${txtrst}"
 	local users
 	local user
 	users="ubuntu linuxuser"
@@ -273,49 +281,29 @@ removeUnusedAccounts(){
 	done >/dev/null 2>&1
 }
 
-
+# This function creates the 'dash' user, but without a login shell and without a home directory.
 # Takes a parameter, the name of the user to create, eg 'dash'
+# Re-runnable.
 createDashUser(){
 
 	local dash_user
-	local option
-	local setpasswd
 	dash_user="$1"
 	[[ -z "$dash_user" ]] && { echo "Please provide a username to create as the dash user.";return 1;}
 	if grep -q ^"$dash_user" /etc/passwd;then
-		echo "Found existing $dash_user user on this system."
+		echo -e "${bldwht}Found existing $dash_user user on this system.${txtrst}"
 		sudo usermod -aG "$dash_user" "$dash_user"
-		echo -en "Would you like to reset the password of the $dash_user user? [[${bldwht}Y${txtrst}] n] "
-		read -r -n1 option
-		echo -e "\\n$option">>"$LOGFILE"
-		echo
-		option=${option:-Y}
-		[[ $option = [yY] ]] && setpasswd="Y"
 	else
-		echo "Creating the $dash_user user."
+		echo -e "${bldwht}Creating the $dash_user user.${txtrst}"
 		# Attempt to delete the group in case this is a rogue entry.
 		sudo groupdel "$dash_user" >/dev/null 2>&1
-		if ! sudo useradd -m -c "$dash_user" "$dash_user" -s /bin/bash;then
+		# No home dir, no shell.
+		if ! sudo useradd -M -s /usr/sbin/nologin -c "$dash_user" "$dash_user";then
 			msg="Could not create $dash_user user, this is bad.\\n"
 			msg+="There may be some remnants of it in the passwd or group or shadow files.\\n"
 			msg+="Check those files and clean them up and try again."
 			echo -e "$msg"
 			exit 1
 		fi
-		setpasswd="Y"
-	fi
-
-
-	if [[ -n $setpasswd ]];then
-		msg="The password for the $dash_user user should be set to something completely random.\\n"
-		msg+="You will never need it for anything. A random password has been generated for you below\\n"
-		msg+="and set for the $dash_user user you can keep a copy if you like, but it is not required.\\n"
-		echo -e "$msg"
-		dashpw=$(getRandomString 32)
-		echo -e "${bldwht}$dashpw${txtrst}\\n\\n"
-		echo "$dash_user:$dashpw"|sudo chpasswd
-		read -r -s -n1 -p "Press any key to continue. "
-		echo
 	fi
 
 	# Finally add the mno user to the dash group.
@@ -327,8 +315,8 @@ createDashUser(){
 
 preventRootSSHLogins(){
 	grep ^PermitRootLogin /etc/ssh/sshd_config |tail -1|grep -q "PermitRootLogin no"\
-	&& { echo "Login as root via ssh is already disabled, continuing...";return 0;}
-	msg="**** Disabling root logins from ssh connections. ****\\n\\n"
+	&& { echo -e "${bldwht}Login as root via ssh is already disabled, continuing...${txtrst}";return 0;}
+	msg="${bldwht}**** Disabling root logins from ssh connections. ****${txtrst}\\n\\n"
 	msg+="For security reasons we want to disable remote logins to the root user from now on.\\n"
 	msg+="The root user exists on every UNIX/Linux machine and its password is being brute force\\n"
 	msg+="attacked all the time!  From now on you must *always* logon with the $(whoami) user."
@@ -349,14 +337,14 @@ uninstallJunkPackages(){
 	# tmux and screen are good ways for hackers to hide their running sessions.
 	# Remove polkit because CVE was discovered in it and it seems to be pretty much useless.
 	# Doing it like this because if any one of the packages is unknown to the package manager, apt will do nothing, so remove them one by one.
-	echo "Uninstalling unnecessary programs..."
+	echo -e "${bldwht}Uninstalling unnecessary programs...${txtrst}"
 	local packages
 	local package
 	local service
 	packages="screen tmux rsync usbutils pastebinit netcat netcat-openbsd libthai-data libthai0 eject ftp dosfstools command-not-found wireless-regdb ntfs-3g snapd libmysqlclient21 g++-10 gcc-10 policykit-1 libpolkit-gobject-1-0 popularity-contest apache2-utils"
 	for package in $packages
 	do
-		echo "*** Removing $package ***"
+		echo -e "${bldwht}*** Removing $package ***${txtrst}"
 		sudo apt-get -y remove "$package" --purge
 	done
 	# After removing all this cruft, I found the following was also needed to make systemd stop trying to bring up removed services.
@@ -371,7 +359,7 @@ uninstallJunkPackages(){
 }
 
 updateSystem(){
-	msg="Updating your system using apt update/upgrade.\\n"
+	msg="${bldwht}Updating your system using apt update/upgrade.${txtrst}\\n"
 	msg+="Answer any prompts as appropriate...\\n"
 	echo -e "$msg"
 
@@ -380,20 +368,20 @@ updateSystem(){
 
 	uninstallJunkPackages
 
-	echo "Finished applying system updates."
+	echo -e "${bldwht}Finished applying system updates.\n"
 
-	echo " Install additional packages needed for masternode operation..."
+	echo -e "Installing additional packages needed for masternode operation...${txtrst}"
 	sudo apt-get -y install ufw git patch curl wget tor unzip pv bc jq speedtest-cli hdparm net-tools catimg &&\
 	sudo apt-get autoremove --purge &&\
-	sudo apt-get clean && echo "Additional packages were installed successfully..." ||\
-	{ echo "There was an error installing the additional packages, exiting...";exit 2; }
+	sudo apt-get clean && echo -e "${bldwht}Additional packages were installed successfully...${txtrst}\n" ||\
+	{ echo -e "${bldred}There was an error installing the additional packages, exiting...${txtrst}";exit 2; }
 }
 
 
 enableFireWall(){
 	# This is not required for Raspberry Pi.
 	((OS==1))&&return
-	echo "Checking for a firewall..."
+	echo -e "${bldwht}Checking for a firewall...${txtrst}"
 	local firewall
 	firewall=$(sudo ufw status)
 	grep -q "^22.tcp\ *[LA][IL][ML]" <<<"$firewall" &&\
@@ -405,20 +393,21 @@ enableFireWall(){
 		sudo ufw allow 9999/tcp &&\
 		sudo ufw logging on &&\
 		sudo ufw enable &&\
-		echo "Firewall configured successfully!" ||\
-		echo "Error enabling firewall."
+		echo -e "${bldwht}Firewall configured successfully!${txtrst}" ||\
+		echo -e "${bldred}Error enabling firewall.${txtrst}"
 	else
-		echo "Your firewall is OK."
+		echo -e "${bldwht}Your firewall is OK.${txtrst}"
 	fi
 }
 
 configureSwap(){
 	# This is not required for Raspberry Pi.
 	((OS==1))&&return
-	echo "Checking your available swap space..."
+	echo -e "${bldwht}Checking your available swap space...${txtrst}"
 	local swapfile
-	if (( $(free -m|awk '/Swap/ {print $2}') < 3096 ));then
-		echo "Adding 3GB swap..."
+	# 3071 must be less than 3072, otherwise we create two swaps.
+	if (( $(free -m|awk '/Swap/ {print $2}') < 3071 ));then
+		echo -e "${bldwht}Adding 3GB swap...${txtrst}"
 		swapfile="/var/swapfile"
 		[[ -f /var/swapfile ]] && swapfile="$swapfile.$RANDOM"
 		sudo bash -c "fallocate -l 3G \"$swapfile\"&&\
@@ -427,16 +416,16 @@ configureSwap(){
 		swapon \"$swapfile\"&&\
 		grep -q \"^\"$swapfile\".none.swap.sw.0.0\" /etc/fstab ||\
 		echo -e \"\"$swapfile\"\tnone\tswap\tsw\t0\t0\" >>/etc/fstab"
-		(( $? != 0 )) && echo "Error adding swap."
+		(( $? != 0 )) && echo -e "${bldred}Error adding swap.${txtrst}"
 	else
-		echo "You already have enough swap space."
+		echo -e "${bldwht}You already have enough swap space.${txtrst}"
 	fi
 }
 
 # Re-runable function to configure TOR for dash user.
 # Takes a parameter, the name of the dash user, eg 'dash'.
 configureTOR(){
-	echo "Configuring TOR..."
+	echo -e "${bldwht}Configuring TOR...${txtrst}"
 	local x
 	local dash_user
 	dash_user="$1"
@@ -452,7 +441,7 @@ configureTOR(){
 	if((PIPESTATUS == 0));then
 		sudo usermod -aG "$group" "$dash_user"
 	else
-		echo "Error detecting the tor group name."
+		echo -e "${bldred}Error detecting the tor group name.${txtrst}"
 	fi
 	sudo systemctl restart tor
 }
@@ -460,7 +449,7 @@ configureTOR(){
 # Re-runnable.
 # Takes one parameter, the name of the dash user, eg 'dash'.
 increaseNoFileParam(){
-	echo "Checking open file limits..."
+	echo -e "${bldwht}Checking open file limits...${txtrst}"
 	local nofile
 	local dash_user
 	dash_user="$1"
@@ -468,17 +457,25 @@ increaseNoFileParam(){
 	nofile=$(sudo grep -v ^# /etc/security/limits.conf|grep "$dash_user"|grep -o "nofile.*"|tail -1|awk '{print $2}')
 	[[ -z $nofile ]] && nofile=0
 	if ((nofile!=4096));then
-		echo "Adjusting nofile limit in limits.conf"
+		echo -e "${bldwht}Adjusting nofile limit in limits.conf${txtrst}"
 		sudo sed -i "s/\($dash_user.*nofile.*\)/#\1/g" /etc/security/limits.conf
-		echo "$dash_user - nofile 4096"|sudo tee -a /etc/security/limits.conf
+		#echo "$dash_user - nofile 4096"|sudo tee -a /etc/security/limits.conf
+		sudo tee -a /etc/security/limits.conf <<< "$dash_user - nofile 4096"
 	fi
 	if ! sudo grep -v ^# /etc/systemd/system.conf|grep -q DefaultLimitNOFILE=4096;then
-		echo "Adjusting nofile limit in system.conf"
+		echo -e "${bldwht}Adjusting nofile limit in system.conf${txtrst}"
 		sudo sed -i 's/\(^DefaultLimitNOFILE=.*\)/#\1/g' /etc/systemd/system.conf
-		echo "DefaultLimitNOFILE=4096:524288"|sudo tee -a /etc/systemd/system.conf
+		#echo "DefaultLimitNOFILE=4096:524288"|sudo tee -a /etc/systemd/system.conf
+		sudo tee -a /etc/systemd/system.conf <<< "DefaultLimitNOFILE=4096:524288"
 	fi
 }
 
+# Re-runnable.
+# This will allow logs to be kept from previous boots, useful for troubleshooting.
+enablePersistentLogs(){
+	echo -e "${bldwht}Enabling persistent journald logs...${txtrst}"
+	sudo mkdir -vp /var/log/journal
+}
 
 # Returns:-
 # 0 if the change was made
@@ -486,12 +483,13 @@ increaseNoFileParam(){
 addSysCtl(){
 	sudo grep -q "^vm\.overcommit_memory" /etc/sysctl.conf\
 	&& return 1\
-	|| { echo "Adjusting kernel parameter in /etc/sysctl.conf to optimise RAM usage.";sudo bash -c "echo \"vm.overcommit_memory=1\">>/etc/sysctl.conf";}
+	|| { echo -e "${bldwht}Adjusting kernel parameter in /etc/sysctl.conf to optimise RAM usage.${txtrst}";\
+	sudo tee -a /etc/sysctl.conf <<< "vm.overcommit_memory=1";}
 }
 
 rebootSystem(){
-	msg="A reboot is required at this time to allow the changes to take effect\\n"
-	msg+="and to verify the system is still working correctly.\\n"
+	msg="${bldwht}A reboot is required at this time to allow the changes to take effect\\n"
+	msg+="and to verify the system is still working correctly.${txtrst}\\n"
 	echo -e "$msg"
 	read -r -s -n1 -p "Press any key when ready to reboot. "
 	echo
@@ -510,41 +508,41 @@ addKeyToStore(){
 	local error
 	id="29590362ec878a81fd3c202b52527bedabe87984"
 	# Attempt to refresh the key (if it exists) to get revocation information in case it is revoked.
-	echo "Refreshing Pasta's public key, if possible..."
+	echo -e "${bldwht}Refreshing Pasta's public key, if possible...${txtrst}"
 	gpg --refresh-keys $id || gpg --keyserver hkp://keyserver.ubuntu.com --refresh-keys $id
 	# Check if we already have the Pasta key.
 	if gpg -k|grep -q -i $id;then
 		gpg -k $id|grep -q -i revoked &&\
-		{ echo "This Pasta key is revoked!  We cannot trust this key, we cannot continue to download the binaries.";return 3;}
+		{ echo -e "${bldred}This Pasta key is revoked!  We cannot trust this key, we cannot continue to download the binaries.${txtrst}";return 3;}
 		return 0
 	fi
 
-	echo "Downloading Pasta's public key for verification of Dash Core builds..."
+	echo -e "${bldwht}Downloading Pasta's public key for verification of Dash Core builds...${txtrst}"
 	wget -q -O/tmp/pasta_1.pgp https://keybase.io/pasta/pgp_keys.asc?fingerprint=29590362ec878a81fd3c202b52527bedabe87984 || error=yes
 	wget -q -O/tmp/pasta_2.pgp "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x29590362ec878a81fd3c202b52527bedabe87984" || error=yes
 	wget -q -O/tmp/pasta_3.pgp https://gist.githubusercontent.com/PastaPastaPasta/ae19c1826a91a9c8d126150e903df7e0/raw/6a232f7fad99ee729177883056b8716d79380e73/pasta.pgp || error=yes
 
 	if [[ -n $error ]];then
-		echo "There was an error downloading the public keys, aborting...";return 1
+		echo -e "${bldred}There was an error downloading the public keys, aborting...${txtrst}";return 1
 	fi
 	error=
 
-	echo "Verifying Pasta's public key..."
+	echo -e "${bldwht}Verifying Pasta's public key...${txtrst}"
 	gpg /tmp/pasta_1.pgp | grep -q -i $id || error=yes
 	gpg /tmp/pasta_2.pgp | grep -q -i $id || error=yes
 	gpg /tmp/pasta_3.pgp | grep -q -i $id || error=yes
 	if [[ -n $error ]];then
-		echo "There was an error verifying the public key, aborting...";return 2
+		echo -e "${bldred}There was an error verifying the public key, aborting...${txtrst}";return 2
 	fi
 	error=
 
-	echo "Adding Pasta's key to the keystore..."
+	echo -e "${bldwht}Adding Pasta's key to the keystore...${txtrst}"
 	gpg --import /tmp/pasta_1.pgp
 }
 
 downloadDashd(){
-	echo "Starting Download of dashcore..."
-	echo "Checking machine type to determine package for download..."
+	echo -e "${bldwht}Starting Download of dashcore..."
+	echo -e "Checking machine type to determine package for download...${txtrst}"
 	local mach
 	local arch
 	local error
@@ -561,30 +559,30 @@ downloadDashd(){
 			arch="x86_64-linux-gnu"
 			;;
 		*)
-			msg="ERROR: Machine type ($mach) not recognised.\\n"
-			msg+="Could not download the dashcore binaries.  Aborting..."
+			msg="${bldred}ERROR: Machine type ($mach) not recognised.\\n"
+			msg+="Could not download the dashcore binaries.  Aborting...${txtrst}"
 			echo -e "$msg"
 			return 1
 			;;
 	esac
 	cd /tmp
 	wget -q -O SHA256SUMS.asc https://github.com/dashpay/dash/releases/latest/download/SHA256SUMS.asc ||\
-	{ echo "Download of SHA256SUMS.asc has failed!  Aborting..."; return 2;}
-	echo "Download of SHA256SUMS.asc completed successfully!"
+	{ echo -e "${bldred}Download of SHA256SUMS.asc has failed!  Aborting...${txtrst}"; return 2;}
+	echo -e "${bldgrn}Download of SHA256SUMS.asc completed successfully!${txtrst}"
 	local awk_string
 	awk_string="awk '/dashcore.*$arch.*.tar.gz/ {print \$2}' SHA256SUMS.asc"
 	local filename
 	filename=$(eval "$awk_string")
 	wget -q -O "$filename" https://github.com/dashpay/dash/releases/latest/download/"$filename" || error=yes
 	wget -q -O "${filename}.asc" https://github.com/dashpay/dash/releases/latest/download/"${filename}.asc" || error=yes
-	[[ -n "$error" ]] && { echo "There was an error downloading $filename and/or ${filename}.asc.  Aborting...";return 3;}
+	[[ -n "$error" ]] && { echo -e "${bldred}There was an error downloading $filename and/or ${filename}.asc.  Aborting...${txtrst}";return 3;}
 
 	echo "$filename" >.filename
 }
 
 downloadNightlyDashd(){
-	echo "Starting Download of nightly dashcore..."
-	echo "Checking machine type to determine package for download..."
+	echo -e "${bldwht}Starting Download of nightly dashcore..."
+	echo -e "Checking machine type to determine package for download...${txtrst}"
 	local mach
 	local arch
 	local base_dir
@@ -606,23 +604,23 @@ downloadNightlyDashd(){
 			arch="x86_64-linux-gnu"
 			;;
 		*)
-			msg="ERROR: Machine type ($mach) not recognised.\\n"
-			msg+="Could not download the dashcore binaries.  Aborting..."
+			msg="${bldred}ERROR: Machine type ($mach) not recognised.\\n"
+			msg+="Could not download the dashcore binaries.  Aborting...${txtrst}"
 			echo -e "$msg"
 			return 1
 			;;
 	esac
-	echo "Cool!  Determined we need to get $arch."
+	echo -e "${bldwht}Cool!  Determined we need to get $arch.${txtrst}"
 	cd /tmp
 	# First we get the HTML page from where a user would normally go, but because of lazy loading,
 	# the page does not link the assets we want.
 	url="https://github.com/dashpay/dash-dev-branches/releases/latest"
-	echo "Fetching $url..."
+	echo -e "${bldwht}Fetching${txtrst} $url..."
 	wget -q -Olatest "$url"
 
 	# Try to find the link to the page the assets we are interested in are.
 	assets_page=$(grep -o -i src=\"https://github.com.*dashpay.*nightly.*\" latest|awk -F '"' '{print $2}')
-	echo "OK!  Now fetching the assets page $assets_page...."
+	echo -e "${bldwht}OK!  Now fetching the assets page${txtrst} $assets_page...."
 	wget -q -Oassets "$assets_page"
 
 	# There are two files, the main binary and the debug symbols.
@@ -630,12 +628,12 @@ downloadNightlyDashd(){
 	for p in $download_paths;do
 		filename=$(basename "$p")
 		p="https://github.com${p}"
-		echo "Neat!  Now starting download of $p"
+		echo -e "${bldwht}Neat!  Now starting download of${txtrst} $p"
 		wget -q -O "$filename" "$p"
 		cd "$INSTALL_LOCATION"
-		echo "Untarring $filename..."
+		echo -e "${bldwht}Untarring${txtrst} $filename..."
 		sudo tar xf /tmp/"$filename"||\
-		{ echo "Failed to extract the archive, check that tar is working.  Aborting...";return 6;}
+		{ echo -e "${bldred}Failed to extract the archive, check that tar is working.  Aborting...${txtrst}";return 6;}
 		cd /tmp
 	done
 	cd "$INSTALL_LOCATION"
@@ -643,9 +641,9 @@ downloadNightlyDashd(){
 	base_dir=$(basename $(tar tf /tmp/"$filename" |head -1))
 	sudo ln -s "$base_dir" dash
 	[[ -f dash/bin/dashd ]] ||\
-	{ echo "dashd is not accessible via the symlink.  Aborting...";return 7;}
+	{ echo -e "${bldred}dashd is not accessible via the symlink.  Aborting...${txtrst}";return 7;}
 	ldd dash/bin/dashd >/dev/null 2>&1 ||\
-	{ echo "dashd is not executable on this machine, possible cause is the wrong architecture was downloaded for this system.  Aborting...";return 8;}
+	{ echo -e "${bldred}dashd is not executable on this machine, possible cause is the wrong architecture was downloaded for this system.  Aborting...${txtrst}";return 8;}
 }
 
 
@@ -655,9 +653,9 @@ verifyDashd(){
 	filename="$1"
 	[[ -z "$filename" ]] && { echo "A filename is required to verify dashd.";return 1;}
 	if gpg --verify "${filename}.asc" "$filename";then
-		echo "$filename has verified successfully!"
+		echo -e "$filename ${bldwht}has verified successfully!${txtrst}"
 	else
-		echo "$filename has NOT verified successfully, cannot continue!"
+		echo -e "${bldwht}$filename has NOT verified successfully, cannot continue!${txtrst}"
 		return 2
 	fi
 }
@@ -665,29 +663,29 @@ verifyDashd(){
 installDashd(){
 	local filename
 	filename="$1"
-	[[ -z "$filename" ]] && { echo "A filename is required to install dashd.";return 1;}
-	[[ -z "$INSTALL_LOCATION" ]] && { echo "I don't know where to install! Check the variable INSTALL_LOCATION.";return 2;}
+	[[ -z "$filename" ]] && { echo -e "${bldred}A filename is required to install dashd.${txtrst}";return 1;}
+	[[ -z "$INSTALL_LOCATION" ]] && { echo -e "${bldred}I don't know where to install! Check the variable INSTALL_LOCATION.${txtrst}";return 2;}
 	# Now let's install it!
-	echo "Installing the dashcore package..."
+	echo -e "${bldwht}Installing the dashcore package...${txtrst}"
 	cd "$INSTALL_LOCATION" ||\
-	{ echo "Install location $INSTALL_LOCATION is not accessible.  Aborting...";return 5;}
+	{ echo -e "${bldred}Install location $INSTALL_LOCATION is not accessible.  Aborting...${txtrst}";return 5;}
 	local base_dir
 	base_dir=$(basename $(tar tf /tmp/"$filename" |head -1))
 	sudo tar xf /tmp/"$filename" ||\
-	{ echo "Failed to extract the archive, check that tar is working.  Aborting...";return 6;}
+	{ echo -e "${bldred}Failed to extract the archive, check that tar is working.  Aborting...${txtrst}";return 6;}
 	sudo rm -f dash >/dev/null 2>&1
 	sudo ln -s "$base_dir" dash
 	[[ -f dash/bin/dashd ]] ||\
-	{ echo "dashd is not accessible via the symlink.  Aborting...";return 7;}
+	{ echo -e "${bldred}dashd is not accessible via the symlink.  Aborting...${txtrst}";return 7;}
 	ldd dash/bin/dashd >/dev/null 2>&1 ||\
-	{ echo "dashd is not executable on this machine, possible cause is the wrong architecture was downloaded for this system.  Aborting...";return 8;}
+	{ echo -e "${bldred}dashd is not executable on this machine, possible cause is the wrong architecture was downloaded for this system.  Aborting...${txtrst}";return 8;}
 }
 
 
 
 # Re-runnable, it will only make the change once.
 configureManPages(){
-	echo "Adding Dash man pages to the MANPATH..."
+	echo -e "${bldwht}Adding Dash man pages to the MANPATH...${txtrst}"
 	sudo bash -c "grep -q \"^MANPATH_MAP.*/opt/dash/bin.*/opt/dash/share/man\" /etc/manpath.config||\
 					echo -e \"MANPATH_MAP\t/opt/dash/bin\t\t/opt/dash/share/man\">>/etc/manpath.config"
 }
@@ -701,12 +699,12 @@ configurePATH(){
 	(($#<1))&&return;
 	# Exit if I am unfamiliar with how the shell is setup on this OS.
 	osCheck >/dev/null 2>&1
-	(( $? > 1 ))&&{ echo "Your operating system is not supported, please edit your PATH manually.";return;}
+	(( $? > 1 ))&&{ echo -e "${bldred}Your operating system is not supported, please edit your PATH manually.${txtrst}";return;}
 	# For each parameter (user) adjust their PATH if required.
 	while :;do
 		# Exit if this parameter is empty.
 		[[ -z "$1" ]]&&break
-		echo "Adding Dash binaries to the PATH of the $1 user..."
+		echo -e "${bldwht}Adding Dash binaries to the PATH of the $1 user...${txtrst}"
 		sudo bash -c "grep -q '^\[\[ -d /opt/dash/bin \]\]&&PATH=\$PATH:/opt/dash/bin' /home/$1/.profile||\
 			echo '[[ -d /opt/dash/bin ]]&&PATH=\$PATH:/opt/dash/bin'>>/home/$1/.profile"
 		# Move the parameters down and exit when they are all consumed.
@@ -717,14 +715,15 @@ configurePATH(){
 # Takes a parameter, the name of the dash user, eg 'dash'.
 createDashConf(){
 	# Configure a bare bones dash.conf file.
-	[[ -z $DASH_CONF ]] && { echo "DASH_CONF is not defined, cannot set this up now.";exit 1;}
+	[[ -z $DASH_CONF ]] && { echo -e "${bldred}DASH_CONF is not defined, cannot set this up now.${txtrst}";exit 1;}
 	local option
+	local skip
 	local dash_user
 	dash_user="$1"
 	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user...";return 1;}
-	if sudo test -f "$DASH_CONF";then
+	if [[ -f "$DASH_CONF" ]];then
 		echo "******************** $DASH_CONF ********************"
-		sudo cat "$DASH_CONF"
+		cat "$DASH_CONF"
 		echo "******************** $DASH_CONF ********************"
 		msg="A dash.conf file already exists at $DASH_CONF\\n"
 		msg+="It is displayed on the screen above this text. Would you like to overwrite\\n"
@@ -737,45 +736,48 @@ createDashConf(){
 		option=${option:-N}
 		if [[ $option = [nN] ]]
 		then
-			return 1
+			skip=1
 		else
 			local dash_conf_bak
 			dash_conf_bak="$DASH_CONF-"$(date +"%Y%m%d%H%M")
-			sudo -u "$dash_user" bash -c "cp \"$DASH_CONF\" \"$dash_conf_bak\""
-			echo "A backup has been made of your existing dash conf at $dash_conf_bak"
+			sudo bash -c "cp \"$DASH_CONF\" \"$dash_conf_bak\""
+			echo -e "${bldwht}A backup has been made of your existing dash conf at${txtrst} $dash_conf_bak"
 		fi
 	fi
 
-	# We will try and populate as much as is possible in the below template.
-	echo "Initialising a default dash.conf file for you...."
-	local rpcuser
-	local rpcpassword
-	local ip
-	local bls_key
-	rpcuser=$(getRandomString 40)
-	rpcpassword=$(getRandomString 40)
-	ip=$(curl -4s https://icanhazip.com/)||ip=$(curl -4s https://ipecho.net/plain)
-	(( $? != 0 || ${#ip} < 7 || ${#ip} > 15 ))&& ip="XXX.XXX.XXX.XXX"
+	if [[ -z $skip ]];then
+		# We will try and populate as much as is possible in the below template.
+		echo -e "${bldwht}Initialising a default dash.conf file for you....${txtrst}"
+		local rpcuser
+		local rpcpassword
+		local ip
+		local bls_key
+		rpcuser=$(getRandomString 40)
+		rpcpassword=$(getRandomString 40)
+		ip=$(curl -4s https://icanhazip.com/)||ip=$(curl -4s https://ipecho.net/plain)
+		(( $? != 0 || ${#ip} < 7 || ${#ip} > 15 ))&& ip="XXX.XXX.XXX.XXX"
 
-	msg="Next you need your bls private that you got from the 'bls generate' command\\n"
-	msg+="in the core walletor from DMT.\\n"
-	msg+="Note: This is NOT your collateral private key !\\n"
-	msg+="Please enter your bls private (secret) key, if you don't have it ready,\\n"
-	msg+="just type in 'default' and edit your $DASH_CONF file later."
-	echo -e "$msg"
-	option='n'
-	until [[ "$option" = 'Y' || "$option" = 'y' ]];do
-		read -r -n64 -p "bls key " bls_key
-		echo -en "You entered a bls key of ${bldwht}\"$bls_key\"${txtrst}.\\nPress 'Y' to accept, '${bldwht}N${txtrst}' to re-enter. "
-		read -r -n1 option
-		echo -e "\\n$option">>"$LOGFILE"
-		echo
-		option=${option:-N}
-	done
-	# Case insensitive match.  Set some random bls key because the masternode won't start without it.
-	[[ ${bls_key,,} = "default" ]]&& bls_key="000000c757797986f29fb529ad5352de587f7c9ecdfd1ff727e572fa193e0dec"
-	echo "Creating dash.conf file..."
-	sudo -u "$dash_user" bash -c "mkdir -p $(dirname "$DASH_CONF")&&cat >\"$DASH_CONF\"<<\"EOF\"
+		msg="Next you need your bls private that you got from the 'bls generate' command\\n"
+		msg+="in the core wallet or from DMT.\\n"
+		msg+="Note: This is NOT your collateral private key !\\n"
+		msg+="Please enter your bls private (secret) key, if you don't have it ready,\\n"
+		msg+="just type in 'default' and edit your $DASH_CONF file later."
+		echo -e "$msg"
+		option='n'
+		until [[ "$option" = 'Y' || "$option" = 'y' ]];do
+			read -r -n64 -p "bls key " bls_key
+			echo -en "\nYou entered a bls key of ${bldwht}\"$bls_key\"${txtrst}.\\nPress 'Y' to accept, '${bldwht}N${txtrst}' to re-enter. "
+			read -r -n1 option
+			echo -e "\\n$option">>"$LOGFILE"
+			echo
+			option=${option:-N}
+		done
+		# Case insensitive match.  Set some random bls key because the masternode won't start without it.
+		[[ ${bls_key,,} = "default" ]]&& bls_key="000000c757797986f29fb529ad5352de587f7c9ecdfd1ff727e572fa193e0dec"
+		echo -e "${bldwht}Creating dash.conf file...${txtrst}"
+		sudo bash -c "mkdir -p $(dirname "$DASH_CONF")&&cat >\"$DASH_CONF\"<<\"EOF\"
+#----
+datadir=/var/dashcore
 #----
 rpcuser=$rpcuser
 rpcpassword=$rpcpassword
@@ -792,14 +794,17 @@ proxy=127.0.0.1:9050
 torcontrol=127.0.0.1:9051
 #----
 EOF"
+fi
+	# Set the perms and group such that we can edit this file.
+	sudo chmod 664 "$DASH_CONF"
+	sudo chgrp "$dash_user" "$DASH_CONF"
+
+	# and create that datadir in var.
+	sudo install -v -m 775 -g "$dash_user" -d /var/dashcore
 }
 
-# Takes a parameter, the name of the dash user, eg 'dash'.
+
 editDashConf(){
-	[[ -z $DASH_CONF ]] && { echo "DASH_CONF is not defined, cannot set this up now.";exit 1;}
-	local dash_user
-	dash_user="$1"
-	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user...";return 1;}
 	msg="Once you are done editing this file exit with CTRL + X and answer Y to save,\\n"
 	msg+="if you're using vi, press ESC, then type in :wq to write and quit."
 	echo -e "$msg"
@@ -810,14 +815,14 @@ editDashConf(){
 		# the copy I saved earlier and then after nano is done I tie stderr to stdout again
 		# so that the tee can continue log everything.
 		exec 2>&4
-		sudo -i -u "$dash_user" bash -c "nano $DASH_CONF"
+		nano "$DASH_CONF"
 		exec 2>&1
 	elif test -x $(which vi);then
 		exec 2>&4
-		sudo -i -u "$dash_user" bash -c "vi $DASH_CONF"
+		vi "$DASH_CONF"
 		exec 2>&1
 	else
-		echo "Could not find an editor on you machine, remember to edit the file $DASH_CONF yourself later."
+		echo -e "${bldred}Could not find an editor on you machine, remember to edit the file $DASH_CONF yourself later.${txtrst}"
 	fi
 }
 
@@ -826,11 +831,12 @@ editDashConf(){
 # it will also restart the process if it should crash for some reason.
 # This takes one parameter, the name of the dash user, eg 'dash'.
 createDashdService(){
+	[[ -z $DASH_CONF ]] && { echo -e "${bldred}DASH_CONF is not defined, cannot set this up now.${txtrst}";exit 1;}
 	local dash_user
 	dash_user="$1"
-	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user...";return 1;}
+	[[ -z "$dash_user" ]] && { echo -e "${bldred}Give me the name of the dash user...${txtrst}";return 1;}
 	[[ -f /etc/systemd/system/dashd.service ]] &&\
-	{ echo "Systemd dashd unit file already exists, skipping...";return 1;}
+	{ echo -e "${bldwht}Systemd dashd unit file already exists, skipping...${txtrst}";return 1;}
 	# Gotta escape the " with \ in the here document.
 	sudo mkdir -p /etc/systemd/system&&\
 	sudo bash -c "cat >/etc/systemd/system/dashd.service<<\"EOF\"
@@ -848,12 +854,12 @@ Type=forking
 User=$dash_user
 Group=$dash_user
 
-ExecStart=/opt/dash/bin/dashd
+ExecStart=/opt/dash/bin/dashd -conf=$DASH_CONF
 # Time that systemd gives a process to start before shooting it in the head
 TimeoutStartSec=10m
 
 # If ExecStop is not set, systemd sends a SIGTERM, which is \"okay\", just not ideal
-ExecStop=/opt/dash/bin/dash-cli stop
+ExecStop=/opt/dash/bin/dash-cli -conf=$DASH_CONF stop
 
 # Time that systemd gives a process to stop before shooting it in the head
 TimeoutStopSec=300
@@ -881,14 +887,14 @@ EOF"
 
 	sudo systemctl daemon-reload &&\
 	sudo systemctl enable --now dashd &&\
-	echo "Dash is now installed as a system service and initializing..." ||\
-	echo "There was a problem registering and starting the dashd daemon via systemd."
+	echo -e "${bldgrn}Dash is now installed as a system service and initializing...${txtrst}" ||\
+	echo -e "${bldred}There was a problem registering and starting the dashd daemon via systemd.${txtrst}"
 }
 
 createTopRC(){
 	# We wont overwrite your .toprc if you already have one.
 	[[ -f ~/.toprc ]] && return 1
-	echo "Configuring ~/.toprc"
+	echo -e "${bldwht}Configuring ~/.toprc${txtrst}"
 	echo "H4sICIxNGGMAAy50b3ByYwC11Elv00AUAOBz/Ct8ogmYYntsk0LcliYKdElZ2rKUxTj22JnW4zEz
 duPyf6AVJ6QWRU0IFJH8L8ZVpHEPXFC4jN7TLO99erJTkiwwuUniAIVyG0VQrm6hOMvlhBIPMgaZ
 3Edpjy+xT/qsJq379w4UuUN86LhRyjxqq7MUUZQnzNYUuQUj99hJEYY2WOTbzYzy+7YqtWBQCRCM
@@ -902,58 +908,65 @@ WRdkILVRDn2nj3zI0uKpHX7VwcxzI1h8Dbv8YCndh5Q4LEsSyn8rvJL0B+aNueJ7BAAA"|base64 -d|
 	top -v >/dev/null 2>&1|| rm -f ~/.toprc
 }
 
+# re-runnable
+# This function will add an alias for dash-cli to the .bashrc of the user specified in the first argument.
+createAlias(){
+	[[ -z $DASH_CONF ]] && { echo -e "${bldred}DASH_CONF is not defined, cannot set this up now.${txtrst}";exit 1;}
+	local alias
+	local mno_user
+	mno_user="$1"
+	[[ -z "$mno_user" ]] && { echo -e "${bldred}Please provide the user for which to create the alias as the first argument.${txtrst}";return 1;}
+	echo -e "${bldwht}Creating alias to dash-cli for the $mno_user${txtrst}"
+	alias="alias dash-cli='dash-cli -conf=$DASH_CONF'"
+	local bashrc
+	bashrc="/home/$mno_user/.bashrc"
+	if ! grep -q "^${alias}$" "$bashrc" ;then
+		echo -e "\n$alias\n" >> "$bashrc"
+	fi
+}
 
 installRootCrontab(){
-	echo "Configuring root's crontab..."
+	echo -e "${bldwht}Configuring root's crontab...${txtrst}"
 	local root_crontab
 	root_crontab=$(sudo crontab -u root -l)
 	grep -q "weekly systemctl restart dashd" <<< "$root_crontab" ||\
 	root_crontab+=$(echo -e "\n@weekly systemctl restart dashd")
 	sudo crontab -u root - <<< "$root_crontab"&&\
-	echo "Successfully installed root cron."||\
-	echo "Failed to install root cron."
+	echo -e "${bldgrn}Successfully installed root cron.${txtrst}"||\
+	echo -e "${bldred}Failed to install root cron.${txtrst}"
 }
 
 # We want the debug log file to be viewable by the MNO user too.
-# Takes one parameter, the name of the dash user, eg 'dash'.
 changePermsDebugLog(){
 	local file
 	local i
-	local dash_user
-	dash_user="$1"
-	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user...";return 1;}
 
 	i=3
-	file="/home/"$dash_user"/.dashcore/debug.log"
+	file="/var/dashcore/debug.log"
+	echo -e "${bldwht}Adjusting the permission for file ${file}...${txtrst}"
 	while ((i--));do
-		[[ -r "$file" ]] || sudo chmod og+r "$file" && break
+		[[ -r "$file" ]] || sudo chmod -v og+r "$file" && break
 		sleep 1
 	done
 }
 
 installMasternode(){
 
-	echo "Installing the DASH Masternode."
+	echo -e "${bldwht}Installing the DASH Masternode.${txtrst}"
 	# This section will run again after the first reboot, it should be fairly harmless and quick
 	# but in the future I might jump over this block if the dash user already exists on the system.
 	removeUnusedAccounts
-	createDashUser "$DASH_USER"||{ echo "Failed to create Dash user called $DASH_USER...";exit 1;}
+	createDashUser "$DASH_USER"||{ echo -e "${bldred}Failed to create Dash user called $DASH_USER...${txtrst}";exit 1;}
 	preventRootSSHLogins
 	updateSystem
 	enableFireWall
 	configureSwap
-	configureTOR "$DASH_USER"||{ echo "Failed to add Dash user $DASH_USER to the TOR group...";exit 1;}
-	increaseNoFileParam "$DASH_USER"||{ echo "Failed to adjust params for Dash user $DASH_USER.";exit 1;}
+	configureTOR "$DASH_USER"||{ echo -e "${bldred}Failed to add Dash user $DASH_USER to the TOR group...${txtrst}";exit 1;}
+	increaseNoFileParam "$DASH_USER"||{ echo -e "${bldred}Failed to adjust params for Dash user $DASH_USER.${txtrst}";exit 1;}
+	enablePersistentLogs
+	# On the second pass, the fact this parameter is already set allows us to skip the reboot and continue
+	# with the rest of the install, it's crude, but it works.
 	addSysCtl && rebootSystem
-
-	if ! sudo -u dash whoami >/dev/null 2>&1;then
-		msg="Cannot run a command as the dash user. Check that the dash user exists\\n"
-		msg+="and that this user $(whoami) has the correct permissions to sudo."
-		echo -e "$msg"
-		read -r -s -n1 -p "Press any key to exit. "
-		echo
-		return 2
-	fi
 
 	# To have gotten this far all the checks for a dash user and sudo access have passed.
 	# Also, the system has been configured for a Dash MN, eg swap, sysctl, F/W, updates...
@@ -962,27 +975,29 @@ installMasternode(){
 
 	# Re-running this section on a working masternode should not harm it so long as the user
 	# enters the default options which is to not make breaking changes.
-	addKeyToStore || { echo "The was a problem with adding Pasta's key to the keystore, please resolve this before trying to continue.";exit 1;}
-	downloadDashd || { echo "Download of dashd has failed, exiting.";exit 1;}
+	addKeyToStore || { echo -e "${bldred}The was a problem with adding Pasta's key to the keystore, please resolve this before trying to continue.${txtrst}";exit 1;}
+	downloadDashd || { echo -e "${bldred}Download of dashd has failed, exiting.${txtrst}";exit 1;}
 	filename=$(</tmp/.filename)
-	verifyDashd "$filename" || { echo "The downloaded file $filename does not verify as legit, please resolve this before trying to continue.";exit 1;}
-	installDashd "$filename" || { echo "Failed to install dashd to the system, please resolve this error before trying to continue.";exit 1;}
+	verifyDashd "$filename" || { echo -e "${bldred}The downloaded file $filename does not verify as legit, please resolve this before trying to continue.${txtrst}";exit 1;}
+	installDashd "$filename" || { echo -e "${bldred}Failed to install dashd to the system, please resolve this error before trying to continue.${txtrst}";exit 1;}
 	configureManPages
-	configurePATH "$DASH_USER" "$MNO_USER"
-	createDashConf "$DASH_USER"||{ echo "Failed to add create dash.conf for $DASH_USER...";exit 1;}
+	configurePATH "$MNO_USER"
+	createDashConf "$DASH_USER"||{ echo -e "${bldred}Failed to create dash.conf for $DASH_USER...${txtrst}";exit 1;}
 	# The below also starts the dashd daemon.
-	createDashdService "$DASH_USER"|| { echo "Failed to add create systemd service for $DASH_USER...";exit 1;}
-	changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
+	createDashdService "$DASH_USER"
+	changePermsDebugLog || echo -e "${bldred}Failed to set permissions on debug.log...${txtrst}"
 	createTopRC
-	createAlias `whoami` "$DASH_USER"
+	createAlias `whoami`
 	installRootCrontab
-
-	read -r -s -n1 -p "Installation has completed successfully, press any key to continue. "
+	# We want to reboot here because there is no good way to apply the PATH to the current shell, since this script runs in a new shell.
+	echo -en "${bldgrn}Installation has completed successfully, ${bldwht}press any key to reboot. ${txtrst}"
+	read -r -s -n1
 	echo
+	rebootSystem
 }
 
 # Prints the speed of the primary disk.
-# csv, first field is device path, second field is the result.
+# csv; first field is device path, second field is the result.
 speedTestDisk(){
 	local data
 	local disk
@@ -1001,30 +1016,14 @@ speedTestDisk(){
 # re-runnable
 # Accepts one argument, the name of the user to provide this for.
 passwordlessSudo(){
+	local file
 	local user
 	user="$1"
-	[[ -z "$user" ]] && { echo "Please provide the user to give password-less sudo access.";return 1;}
+	[[ -z "$user" ]] && { echo -e "${bldred}Please provide the user to give password-less sudo access.${txtrst}";return 1;}
+	echo -e "${bldwht}Granting $user passwordless sudo...${txtrst}"
 	file="/etc/sudoers.d/010_${user}-nopasswd"
-	echo "$user ALL=(ALL) NOPASSWD: ALL" | sudo tee "$file"
+	sudo tee "$file" <<< "$user ALL=(ALL) NOPASSWD: ALL"
 	sudo chmod 440 "$file"
-}
-
-# re-runnable
-# This function will add an alias for dash-cli to the .bashrc of the user specified in the first argument.
-# The second argument should be the dash user name, eg 'dash'
-createAlias(){
-	local alias
-	local dash_user
-	local mno_user
-	mno_user="$1";dash_user="$2"
-	[[ -z "$mno_user" ]] && { echo "Please provide the user for which to create the alias as the first argument.";return 1;}
-	[[ -z "$dash_user" ]] && { echo "Please provide the dash user as the second argument.";return 1;}
-	alias="alias dash-cli='dash-cli -conf=/home/$dash_user/.dashcore/dash.conf'"
-	local bashrc
-	bashrc="/home/$mno_user/.bashrc"
-	if ! grep -q "^${alias}$" "$bashrc" ;then
-		echo -e "\n$alias\n" >> "$bashrc"
-	fi
 }
 
 
@@ -1074,7 +1073,6 @@ showStatus(){
 	local num_dashd_procs
 	local dashd_pid
 	local dashd_user
-	local dash_user
 	local i
 	local p
 	local block_height
@@ -1084,13 +1082,14 @@ showStatus(){
 	local pose_score
 	local enabled_mns
 	local mn_sync
+	local dkginfo
+	local num_active_dkg
+	local next_dkg_blocks
 	local last_paid_height
 	local next_payment
 	local width
 	local linesOfStatsPrinted
 
-	dash_user="$1"
-	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user.";return 1;}
 
 	printGraduatedProgressBar 50 0 "Working..."
 	cpu=$(printf '%.2f%%' $(echo "scale=4;$(awk '{print $2}' /proc/loadavg)/$(grep -c ^processor /proc/cpuinfo)*100"|bc))
@@ -1123,8 +1122,9 @@ showStatus(){
 	(( $? !=0 || ${#external_ip} < 7 || ${#external_ip} > 15 ))\
 	&& external_ip="Error"
 
-	onion_addr=$(sudo -i -u "$dash_user" bash -c "dash-cli getnetworkinfo" |  jq -r '.localaddresses[] | select(.address | contains(".onion")) | .address')
+	onion_addr=$(dash-cli -conf="$DASH_CONF" getnetworkinfo 2>/dev/null|jq -r '.localaddresses[] | select(.address | contains(".onion")) | .address' 2>/dev/null)
 	(( $? !=0 )) && onion_addr="Error"
+	(( ${#onion_addr} == 0 )) && onion_addr="Unknown"
 	printGraduatedProgressBar 50 25
 
 	port_9999=$(curl -4s https://mnowatch.org/9999/)
@@ -1139,7 +1139,7 @@ showStatus(){
 		local_port_9999="????"
 	fi
 
-	dashd_version=$(sudo -i -u "$dash_user" bash -c "dashd -version 2>/dev/null" 2>/dev/null)
+	dashd_version=$(dashd -version 2>/dev/null)
 	(( $? != 0 )) && dashd_version="Not found!"\
 	||dashd_version=$(head -1 <<< "$dashd_version")
 	printGraduatedProgressBar 50 50
@@ -1161,7 +1161,7 @@ showStatus(){
 	printGraduatedProgressBar 50 55
 
 	if (( num_dashd_procs > 0 ));then
-		block_height=$(sudo -i -u "$dash_user" bash -c "dash-cli getblockcount 2>/dev/null" 2>/dev/null)
+		block_height=$(dash-cli -conf="$DASH_CONF" getblockcount 2>/dev/null)
 		# Test is for good return, must be a number between 1 and 8 digits long.
 		(( $? != 0 )) || [[ ! "$block_height" =~ ^[0-9]+$ ]] ||  ((${#block_height} > 8 || ${#block_height} == 0 )) && block_height="Error"
 	else
@@ -1185,22 +1185,23 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
-		num_peers=$(sudo -i -u "$dash_user" bash -c "dash-cli getconnectioncount 2>/dev/null" 2>/dev/null)
+		num_peers=$(dash-cli -conf="$DASH_CONF" getconnectioncount 2>/dev/null)
+		(( ${#num_peers} == 0 )) && num_peers="Unknown"
 	else
 		num_peers="dashd down"
 	fi
 
 
 	if (( num_dashd_procs > 0 ));then
-		masternode_status=$(sudo -i -u "$dash_user" bash -c "dash-cli masternode status 2>/dev/null|jq -r '.status' 2>/dev/null" 2>/dev/null)
-		(( ${#masternode_status} == 0 )) && masternode_status=$(sudo -i -u "$dash_user" bash -c "dash-cli masternode status 2>&1|tail -1" 2>/dev/null)
+		masternode_status=$(dash-cli -conf="$DASH_CONF" masternode status 2>/dev/null|jq -r '.status' 2>/dev/null)
+		(( ${#masternode_status} == 0 )) && masternode_status=$(dash-cli -conf="$DASH_CONF" masternode status 2>&1|tail -1)
 	else
 		masternode_status="dashd down"
 	fi
 	printGraduatedProgressBar 50 80
 
 	if (( num_dashd_procs > 0 ));then
-		pose_score=$(sudo -i -u "$dash_user" bash -c "dash-cli masternode status 2>/dev/null|jq -r '.dmnState.PoSePenalty' 2>/dev/null" 2>/dev/null)
+		pose_score=$(dash-cli -conf="$DASH_CONF" masternode status 2>/dev/null|jq -r '.dmnState.PoSePenalty' 2>/dev/null)
 		(( $? != 0 )) || [[ ! "$pose_score" =~ ^[0-9]+$ ]] ||  ((${#pose_score} > 8 || ${#pose_score} == 0 )) && pose_score="N/A"
 	else
 		pose_score="dashd down"
@@ -1209,7 +1210,7 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
-		enabled_mns=$(sudo -i -u "$dash_user" bash -c "dash-cli masternode count 2>/dev/null|jq -r '.enabled' 2>/dev/null" 2>/dev/null)
+		enabled_mns=$(dash-cli -conf="$DASH_CONF" masternode count 2>/dev/null|jq -r '.enabled' 2>/dev/null)
 		(( $? != 0 )) || [[ ! "$enabled_mns" =~ ^[0-9]+$ ]] ||  ((${#enabled_mns} > 8 || ${#enabled_mns} == 0 )) && enabled_mns="Unknown"
 	else
 		enabled_mns="dashd down"
@@ -1217,15 +1218,29 @@ showStatus(){
 
 
 	if (( num_dashd_procs > 0 ));then
-		mn_sync=$(sudo -i -u "$dash_user" bash -c "dash-cli mnsync status 2>/dev/null|jq -r '.AssetName' 2>/dev/null" 2>/dev/null)
+		mn_sync=$(dash-cli -conf="$DASH_CONF" mnsync status 2>/dev/null|jq -r '.AssetName' 2>/dev/null)
 		(( ${#mn_sync} == 0 )) && mn_sync="Unknown"
 	else
 		mn_sync="dashd down"
 	fi
+
+	# Are we in a DKG now?  When is the next DKG?
+	if (( num_dashd_procs > 0 ));then
+		dkginfo=$(dash-cli -conf="$DASH_CONF" quorum dkginfo 2>/dev/null)
+		num_active_dkg=$(jq .active_dkgs <<< "$dkginfo" 2>/dev/null)
+		(( ${#num_active_dkg} == 0 )) && num_active_dkg="Unknown"
+		next_dkg_blocks=$(jq .next_dkg <<< "$dkginfo" 2>/dev/null)
+		(( ${#next_dkg_blocks} == 0 )) && next_dkg_blocks="Unknown"
+	else
+		num_active_dkg="dashd down"
+		next_dkg_blocks="dashd down"
+	fi
+
+
 	printGraduatedProgressBar 50 90
 
 	if (( num_dashd_procs > 0 ));then
-		last_paid_height=$(sudo -i -u "$dash_user" bash -c "dash-cli masternode status 2>/dev/null|jq -r '.dmnState.lastPaidHeight' 2>/dev/null" 2>/dev/null)
+		last_paid_height=$(dash-cli -conf="$DASH_CONF" masternode status 2>/dev/null|jq -r '.dmnState.lastPaidHeight' 2>/dev/null)
 		if (( $? != 0 )) || [[ ! "$last_paid_height" =~ ^[0-9]+$ ]] ||  ((${#last_paid_height} > 8 || ${#last_paid_height} == 0 ));then
 			next_payment="Unknown"
 		else
@@ -1288,9 +1303,10 @@ showStatus(){
 	printf "$bldblu%${width}s : $txtgrn%s\n" "Masternode status" "$masternode_status"
 	printf "$bldblu%${width}s : $txtgrn%s\n" "PoSe score" "$pose_score"
 	printf "$bldblu%${width}s : $txtgrn%s\n" "Masternode sync" "$mn_sync"
+	printf "$bldblu%${width}s : $txtgrn%s/%s\n" "Active DKGs/Next DKG" "$num_active_dkg" "$next_dkg_blocks"
 	printf "$bldblu%${width}s : $txtgrn%s\n" "Next payment" "$next_payment"
 	echo -e "$txtrst"
-	linesOfStatsPrinted=33
+	linesOfStatsPrinted=35
 	if (( num_dashd_procs > 1));then
 		((linesOfStatsPrinted=linesOfStatsPrinted + num_dashd_procs -1))
 	fi
@@ -1299,24 +1315,25 @@ showStatus(){
 
 
 # Intelligently display the logfile from the most recent startup.
-# Takes one parameter, the name of the Dash user, eg 'dash'.
 displayDebugLog(){
-	local dash_user
-	dash_user="$1"
-	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user...";return 1;}
 	# In order for less to work, we have to restore the file descriptors for stdin and stdout.
 	exec 1>&3
 	exec 2>&4
 
-	# Sending commands as a here-doc where only the $ needs to be escaped.
-	# awk was behaving badly using the -c option on ubuntu, not raspbian.
-	sudo -i -u "$dash_user" bash<<EOF
-		[[ -f ~/.dashcore/debug.log ]] || { echo "Could not open debug.log!";exit 1;}
-		lineno=\$(grep -n -i Dash\ Core\ version ~/.dashcore/debug.log |tail -1|awk -F ':' '{print \$1}')
-		linecount=\$(wc -l ~/.dashcore/debug.log|awk '{print \$1}')
-		lines=\$((linecount - lineno +5))
-		tail -\${lines} ~/.dashcore/debug.log|less
-EOF
+	local logfile
+	logfile="/var/dashcore/debug.log"
+	local lineno
+	local linecount
+	local lines
+
+	[[ -f "$logfile" ]] || { echo -e "${bldred}Could not open debug.log!\nCheck perms of $logfile ?${txtrst}";return 1;}
+
+	# What I want to do is show the user the section of the logfile since the most recent startup.
+	lineno=$(grep -n -i Dash\ Core\ version "$logfile" |tail -1|awk -F ':' '{print $1}')
+	linecount=$(wc -l "$logfile"|awk '{print $1}')
+	lines=$((linecount - lineno + 5))
+	tail -${lines} "$logfile"|less
+
 	exec 2>&1
 }
 
@@ -1345,9 +1362,11 @@ updateOS(){
 }
 
 updateDMZ(){
-	echo "Not implemented yet."
+	echo -e "${bldpur}Not implemented yet.${txtrst}"
 }
 
+
+# This needs work.
 # Takes one parameter, the name of the Dash user, eg 'dash'.
 bootStrap(){
 
@@ -1357,7 +1376,7 @@ bootStrap(){
 	local tarfile
 	local dash_user
 	dash_user="$1"
-	[[ -z "$dash_user" ]] && { echo "Give me the name of the dash user...";return 1;}
+	[[ -z "$dash_user" ]] && { echo "${bldred}Give me the name of the dash user...${txtrst}";return 1;}
 
 	read -r -p "Enter the Dash Admin username of the remote server, eg mno [[mno]] : " remote_user
 	echo -e "\\n$remote_user">>"$LOGFILE"
@@ -1380,7 +1399,7 @@ bootStrap(){
 		echo "Shutting down dashd on remote server."
 		sudo systemctl stop dashd
 		echo "Creating tar of the current dashcore directory."
-		sudo -i  -u dash bash -c "cd /home/dash;tar cvjf /tmp/dashcore.tar.bz2 .dashcore"
+		sudo bash -c "cd /;tar cvjf /tmp/dashcore.tar.bz2 /var/dashcore"
 		echo "Tar file is completed, starting dashd again."
 		sudo systemctl start dashd
 EOF
@@ -1388,12 +1407,67 @@ EOF
 	tarfile=${tarfile:-"/tmp/dashcore.tar.bz2"}
 	echo "Downloading the tarfile to this server, when promoted, enter the remote user's password."
 	scp "$remote_user@$remote_ip:$tarfile" /tmp/
-	echo "Extracting tar file to /home/dash"
-	sudo -i -u "$dash_user" bash -c "rm -fr ~/.dashcore;tar xvf /tmp/dashcore.tar.bz2&&cd ~/.dashcore&&yes|rm -fr *.conf se\t* *.pid *.dat *.lock *.log backup/"
+	echo "Extracting tar file to /var"
+	sudo bash -c "rm -fr /var/dashcore;cd /;tar xvf /tmp/dashcore.tar.bz2&&cd /var/dashcore&&yes|rm -fr *conf se\t* *pid *dat .lock *log backup/ *onion* *json"
 	createDashConf "$DASH_USER"||{ echo "Failed to add create dash.conf for $DASH_USER...";exit 1;}
 	sudo systemctl stop dashd
 	sudo systemctl start dashd
 }
+
+# Convert to DMZ v2 settings automatically.
+# Requires one parameter, the name of the dash user.
+doMigration(){
+	local dash_user
+	dash_user="$1"
+	[[ -z "$dash_user" ]]&&{ echo -e "${bldred}Please provide the name of the user that runs the dashd service.${txtrst}";return 1;}
+
+	# Do we even need to do a migration?
+	# Abort if there is no dash user.  This is a clean install.
+	id "$dash_user" >&/dev/null || return 0
+	# Abort if the login shell is disabled.
+	grep -q "$dash_user.*nologin" /etc/passwd && return 0
+
+	echo -e "\n${bldgrn}Migrating from DMZ v1 to DMZ v2...${bldwht}"
+	if [[ -f /etc/dash.conf ]];then
+		echo -e "${bldred}Found an existing dash.conf in the /etc dir, please back it up and remove it before continuing...${txtrst}"
+		return 1
+	fi
+	if [[ -d /var/dashcore ]];then
+		echo -e "${bldred}Found an existing directory at /var/dashcore, please back it up and remove it before continuing...${txtrst}"
+		return 1
+	fi
+	if [[ ! -r /home/"$dash_user"/.dashcore/dash.conf ]];then
+		echo -e "${bldred}Could not open '/home/$dash_user/.dashcore/dash.conf' for reading, please check permissions and try again.${txtrst}"
+		return 1
+	fi
+	echo "Stopping dashd..."
+	sudo systemctl stop dashd
+	echo -e "Copying the dash.conf to the /etc directory...${txtrst}"
+	#echo "datadir=/var/dashcore" | sudo tee "$DASH_CONF"
+	sudo tee "$DASH_CONF" <<< "datadir=/var/dashcore"
+	#cat /home/"$dash_user"/.dashcore/dash.conf | sudo tee -a "$DASH_CONF"
+	sudo tee -a "$DASH_CONF" < /home/"$dash_user"/.dashcore/dash.conf
+	echo -e "${bldwht}"
+	sudo chmod 664 "$DASH_CONF"
+	sudo chown root:"$dash_user" "$DASH_CONF"
+	echo "Moving the datadir to /var..."
+	sudo mv /home/"$dash_user"/.dashcore/ /var/dashcore
+	sudo chown root:"$dash_user" /var/dashcore
+	sudo chmod 775 /var/dashcore
+	echo "Disabling the $dash_user account..."
+	sudo usermod -s /usr/sbin/nologin "$dash_user"
+	echo "Configuring PATH variable for $(whoami)..."
+	configurePATH `whoami`
+	echo "Adding alias to dash-cli for $(whoami)..."
+	createAlias `whoami`
+	echo "Updating dashd.service systemd unit file and starting dashd..."
+	sudo rm /etc/systemd/system/dashd.service
+	createDashdService "$dash_user"
+	echo -e "\n${bldgrn}The migration is now complete!${txtrst}\n"
+	rebootSystem
+}
+
+
 
 getLogo(){
 	catimg -h >/dev/null 2>&1 || return 1
@@ -1462,18 +1536,18 @@ function printRootMenu(){
 	msg+="== ROOT MENU ==\n"
 	msg+="===============\n"
 	msg+="\n\nYou are running as the 'root' user, the only tasks that are necessary to be done\n"
-	msg+="as root is to create the user for the administration of the Dash masternode (mno).\n"
+	msg+="as root is to create the user for the administration of the Dash masternode ($MNO_USER).\n"
 	msg+="This script will create the 'mno' user or masternode operator user, this user\n"
 	msg+="is a privileged user that can also run commands as root and hence change the system.\n"
-	msg+="Later when you log back in as the mno user, the dash user will be created which is what\n"
+	msg+="Later when you log back in as the $MNO_USER user, the dash user will be created which is what\n"
 	msg+="the masternode will run as. The dash user is a unprivileged user and thus\n"
 	msg+="cannot make changes to the system. It is important to have these two users separate\n"
 	msg+="to improve the security of your masternode, after all you don't want your masternode\n"
 	msg+="to get hacked and end up mining Monero and becoming unstable!\n\n"
-	msg+="The first option will check to see if the mno user already exists on your system before\n"
+	msg+="The first option will check to see if the $MNO_USER user already exists on your system before\n"
 	msg+="making changes.\n\n"
 	msg+="\n\nMake a selection from the below options.\n"
-	msg+="1. Create mno user for a new masternode server.\n"
+	msg+="1. Create $MNO_USER user for a new masternode server.\n"
 	msg+="9. Quit.\n\n"
 
 	echo -e "$msg"
@@ -1553,7 +1627,7 @@ manageMasternodeMenu(){
 				echo "Installation has been successful, restarting the dashd daemon..."
 				sudo systemctl stop dashd
 				sudo systemctl start dashd
-				changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
+				changePermsDebugLog || echo "Failed to set permissions on debug.log..."
 			else
 				echo "Installation of dashd has been unsuccessful, please investigate or seek support!"
 			fi
@@ -1573,10 +1647,10 @@ manageMasternodeMenu(){
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
-			editDashConf "$DASH_USER" || { echo "Error editing dash.conf for $DASH_USER.";exit 1;}
+			editDashConf
 			sudo systemctl stop dashd
 			sudo systemctl start dashd
-			changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
+			changePermsDebugLog || echo "Failed to set permissions on debug.log..."
 			read -r -s -n1 -p "Done!  Press any key to continue. "
 			echo
 			return 0
@@ -1592,8 +1666,15 @@ manageMasternodeMenu(){
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
+			# Without this check, the following sed will delete a line from the dash.conf file (assuming it can read it) and that would be awful.
+			echo "reindex=1" >> "$DASH_CONF"||{ echo "Unable to write to $DASH_CONF, check permissions and try again.";return 0;}
+			echo "Stopping dashd...."
 			sudo systemctl stop dashd
-			sudo -i -u $"DASH_USER" bash -c "dashd -reindex"
+			echo "Starting dashd...."
+			sudo systemctl start dashd|| echo "Warning!  You should reboot your system and see if the dashd starts, you might have to run this option again."
+			sleep 1
+			# The sed needs a sudo because it tries to create a temp file in /etc and it is unable to.
+			sudo sed -i '$ d' "$DASH_CONF"
 			read -r -s -n1 -p "Reindex has started!  Press any key to continue. "
 			echo
 			return 0
@@ -1614,8 +1695,8 @@ manageMasternodeMenu(){
 			option=${option:-N}
 			[[ $option = [yY] ]] || return 0
 			echo
-			changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
-			displayDebugLog "$DASH_USER" || { echo "Failed to display debug.log for $DASH_USER...";exit 1;}
+			changePermsDebugLog || echo "Failed to set permissions on debug.log..."
+			displayDebugLog
 			read -r -s -n1 -p "Press any key to continue. "
 			echo
 			return 0
@@ -1635,7 +1716,7 @@ manageMasternodeMenu(){
 				echo "Installation has been successful, restarting the dashd daemon..."
 				sudo systemctl stop dashd
 				sudo systemctl start dashd
-				changePermsDebugLog "$DASH_USER"|| { echo "Failed to set permissions on debug.log for $DASH_USER...";exit 1;}
+				changePermsDebugLog || echo "Failed to set permissions on debug.log..."
 				read -r -s -n1 -p "Press any key to continue. "
 				echo
 			fi
@@ -1745,7 +1826,7 @@ function mainMenu (){
 				option=${option:-N}
 				[[ $option = [yY] ]] || return 0
 				echo
-				bootStrap $"DASH_USER"
+				bootStrap "$DASH_USER"
 				read -r -s -n1 -p "Bootstrap is complete.  Press any key to continue. "
 				echo
 				return 0
@@ -1769,14 +1850,14 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v1.5.1 20240210"
+VERSION="v2.0.0 20240306"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
 DASH_USER=dash
 # dashd install location.
 INSTALL_LOCATION="/opt"
-DASH_CONF="/home/$DASH_USER/.dashcore/dash.conf"
+DASH_CONF="/etc/dash.conf"
 
 # Set this variable to enable installation of experimental nightly builds.
 # This is for testing only and not running on mainnet.
@@ -1802,6 +1883,7 @@ exec 4>&2
 		printBanner
 		if (( idcheckretval == 0 ))
 		then
+			doMigration "$DASH_USER"
 			printMainMenu
 			mainMenu
 		elif (( idcheckretval == 1 ))
