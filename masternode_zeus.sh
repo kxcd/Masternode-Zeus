@@ -1,7 +1,7 @@
 #!/bin/bash
 #set -x
 
-# The author of the software is the owner of the Dash Address: XjwSnc9f81ZVC2GAyKQip5N3Apv2zumRoc
+# The author of the software is the owner of the Dash Address: Xk12bytW979MgxwNPZtYWXuayadxNqdZTY
 
 
 # Define some colours
@@ -494,6 +494,8 @@ rebootSystem(){
 	read -r -s -n1 -p "Press any key when ready to reboot. "
 	echo
 	sudo reboot
+	# Stop running here, don't wait for systemd to kill us, otherwise, this script will continue to run.
+	exit 0
 }
 
 
@@ -905,7 +907,13 @@ ny8Gw+rZ+WQ0Xm2cTAXZnJd5CdQNo2RW/4Ws/p1sCbIlyHcF2ZI6EJfJw1Fj/OPn5a/O2vbvFjAG
 fNTVa/ClGXpeZF2bs9kUZlOYDWE2pT1Gr4355PTLVz7qybR2BdV0YHDp/Ya9vLL6P8YM5kwGggwE
 WRdkILVRDn2nj3zI0uKpHX7VwcxzI1h8Dbv8YCndh5Q4LEsSyn8rvJL0B+aNueJ7BAAA"|base64 -d|zcat >~/.toprc
 	# Test top, because this toprc may not work with different versions of top
-	top -v >/dev/null 2>&1|| rm -f ~/.toprc
+	# Handle change in way version is displayed in top from v4 onwards -V.
+	if top -v >/dev/null 2>&1 || top -V >/dev/null 2>&1;then
+		echo -e "${bldgrn}top is configured successfully.${txtrst}"
+	else
+		rm -f ~/.toprc
+		echo -e "${bldred}top was not configured correctly, using default.${txtrst}"
+	fi
 }
 
 # re-runnable
@@ -1009,7 +1017,7 @@ speedTestDisk(){
 	done <<<"$data"
 	if [[ -n $disk ]];then
 		echo -n "/dev/$disk,"
-		sudo hdparm -t /dev/"$disk"|awk -F= '/Timing/ {gsub(/^[ \t]+/,"",$2); print $2}'
+		sudo hdparm -t /dev/"$disk" 2>/dev/null|awk -F= '/Timing/ {gsub(/^[ \t]+/,"",$2); print $2}'
 	fi
 }
 
@@ -1850,7 +1858,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v2.0.0 20240306"
+VERSION="v2.0.1 20240504"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
