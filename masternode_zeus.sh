@@ -792,7 +792,7 @@ daemon=1
 masternodeblsprivkey=$bls_key
 externalip=$ip
 #----
-proxy=127.0.0.1:9050
+onion=127.0.0.1:9050
 torcontrol=127.0.0.1:9051
 #----
 EOF"
@@ -1858,7 +1858,7 @@ function mainMenu (){
 #	Main
 #
 ##############################################################
-VERSION="v2.0.1 20240504"
+VERSION="v2.0.2 20240726"
 LOGFILE="$(pwd)/$(basename "$0").log"
 ZEUS="$0"
 MNO_USER=mno
